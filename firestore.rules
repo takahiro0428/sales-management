@@ -78,7 +78,8 @@ service cloud.firestore {
       // Update: platform admin or group admin of the member's group
       allow update: if isAuthenticated()
         && (isPlatformAdmin() || isGroupAdminDoc(resource.data.groupId));
-      allow delete: if isAuthenticated() && isPlatformAdmin();
+      allow delete: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupAdminDoc(resource.data.groupId));
     }
 
     // Products collection (public read for shop catalog)
@@ -123,7 +124,8 @@ service cloud.firestore {
       // Update: platform admin or group admin of the invitation's group
       allow update: if isAuthenticated()
         && (isPlatformAdmin() || isGroupAdminDoc(resource.data.groupId));
-      allow delete: if isAuthenticated() && isPlatformAdmin();
+      allow delete: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupAdminDoc(resource.data.groupId));
     }
   }
 }

@@ -65,9 +65,10 @@
                 </div>
                 <p class="text-xs text-slate-400 truncate">{{ m.email }}</p>
               </div>
-              <div v-if="canManage && m.uid !== userProfile?.uid" class="shrink-0">
+              <div v-if="canManage && m.uid !== userProfile?.uid" class="flex items-center gap-1 shrink-0">
                 <button v-if="m.status === 'active'" @click="handleSuspend(m)" class="btn-secondary btn-sm text-xs">停止</button>
                 <button v-else @click="handleReactivate(m)" class="btn-success btn-sm text-xs">復帰</button>
+                <button @click="handleRemoveMember(m)" class="btn-danger btn-sm text-xs">除名</button>
               </div>
             </div>
           </div>
@@ -92,8 +93,10 @@
               <div class="flex items-center gap-2">
                 <span v-if="inv.emailSent === false && inv.emailError" class="text-xs text-red-500">送信失敗</span>
                 <span v-else-if="inv.emailSent" class="text-xs text-emerald-500">送信済み</span>
-                <button v-if="inv.status === 'failed' || (inv.status === 'pending' && !inv.emailSent)"
+                <button v-if="inv.status === 'pending' || inv.status === 'failed'"
                   @click="handleResend(inv.id)" class="btn-secondary btn-sm text-xs">再送信</button>
+                <button v-if="inv.status === 'pending' || inv.status === 'failed'"
+                  @click="handleCancelInvitation(inv)" class="btn-danger btn-sm text-xs">取消</button>
               </div>
             </div>
             <p v-if="inv.emailError" class="text-xs text-red-400 mt-1">エラー: {{ inv.emailError }}</p>
@@ -151,6 +154,24 @@
       danger-mode
       @confirm="confirmSuspend"
     />
+
+    <ConfirmDialog
+      v-model="showCancelInvitationConfirm"
+      title="招待を取り消し"
+      :message="`${cancelInvitationTarget?.email} への招待を取り消しますか？`"
+      confirm-text="取り消す"
+      danger-mode
+      @confirm="confirmCancelInvitation"
+    />
+
+    <ConfirmDialog
+      v-model="showRemoveMemberConfirm"
+      title="メンバーを除名"
+      :message="`${removeMemberTarget?.displayName} をグループから除名しますか？この操作は取り消せません。`"
+      confirm-text="除名する"
+      danger-mode
+      @confirm="confirmRemoveMember"
+    />
   </div>
 </template>
 
@@ -161,7 +182,7 @@ definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const { userProfile, isPlatformAdmin } = useAuth()
-const { getGroup, getGroupMembers, getGroupInvitations, inviteMember, resendInvitation, suspendMember, reactivateMember, isGroupAdmin } = useGroups()
+const { getGroup, getGroupMembers, getGroupInvitations, inviteMember, resendInvitation, cancelInvitation, suspendMember, reactivateMember, removeMember, isGroupAdmin } = useGroups()
 const toast = useToast()
 const { currentGroupId, setCurrentGroup } = useCurrentGroup()
 
@@ -176,6 +197,10 @@ const showInviteModal = ref(false)
 const inviting = ref(false)
 const showSuspendConfirm = ref(false)
 const suspendTarget = ref<any>(null)
+const showCancelInvitationConfirm = ref(false)
+const cancelInvitationTarget = ref<any>(null)
+const showRemoveMemberConfirm = ref(false)
+const removeMemberTarget = ref<any>(null)
 
 const inviteForm = reactive({ email: '', role: 'member' as 'member' | 'groupAdmin' })
 
@@ -235,6 +260,38 @@ const handleResend = async (invId: string) => {
     invitations.value = await getGroupInvitations(groupId)
   } catch (e) {
     toast.error('再送信に失敗しました')
+  }
+}
+
+const handleCancelInvitation = (inv: any) => {
+  cancelInvitationTarget.value = inv
+  showCancelInvitationConfirm.value = true
+}
+
+const confirmCancelInvitation = async () => {
+  if (!cancelInvitationTarget.value) return
+  try {
+    await cancelInvitation(cancelInvitationTarget.value.id)
+    invitations.value = invitations.value.filter((i: any) => i.id !== cancelInvitationTarget.value.id)
+    toast.success('招待を取り消しました')
+  } catch (e) {
+    toast.error('招待の取り消しに失敗しました')
+  }
+}
+
+const handleRemoveMember = (member: any) => {
+  removeMemberTarget.value = member
+  showRemoveMemberConfirm.value = true
+}
+
+const confirmRemoveMember = async () => {
+  if (!removeMemberTarget.value) return
+  try {
+    await removeMember(removeMemberTarget.value.id)
+    members.value = members.value.filter((m: any) => m.id !== removeMemberTarget.value.id)
+    toast.success('メンバーを除名しました')
+  } catch (e) {
+    toast.error('除名に失敗しました')
   }
 }
 

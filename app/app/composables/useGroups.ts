@@ -60,7 +60,7 @@ const memberDocId = (uid: string, groupId: string) => `${uid}_${groupId}`
 
 export const useGroups = () => {
   const { $firestore } = useNuxtApp()
-  const { addDocument, updateDocument } = useFirestore()
+  const { addDocument, updateDocument, deleteDocument } = useFirestore()
 
   const createGroup = async (name: string, description: string, creatorUid: string, creatorName: string, creatorEmail: string) => {
     const groupId = await addDocument('groups', { name, description, createdBy: creatorUid })
@@ -210,6 +210,14 @@ export const useGroups = () => {
     await updateDocument('groupMembers', memberId, { status: 'active' })
   }
 
+  const cancelInvitation = async (invitationId: string) => {
+    await deleteDocument('invitations', invitationId)
+  }
+
+  const removeMember = async (memberId: string) => {
+    await deleteDocument('groupMembers', memberId)
+  }
+
   const getAllActiveMembers = async (): Promise<GroupMember[]> => {
     const q = query(
       collection($firestore, 'groupMembers'),
@@ -247,6 +255,8 @@ export const useGroups = () => {
     resendInvitation,
     suspendMember,
     reactivateMember,
+    cancelInvitation,
+    removeMember,
     isGroupAdmin,
   }
 }

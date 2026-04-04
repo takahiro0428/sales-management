@@ -57,7 +57,7 @@ async function sendInvitationEmail(
           ログイン後、招待が自動的に反映されます。
         </p>
         <div style="margin: 24px 0;">
-          <a href="https://${process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || ""}.web.app/register"
+          <a href="https://${process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || ""}.web.app/register?email=${encodeURIComponent(data.email)}"
              style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">
             アプリを開く
           </a>
@@ -86,6 +86,51 @@ async function sendInvitationEmail(
   }
 }
 
+async function acceptInvitation(
+  invitationId: string,
+  invData: InvitationData,
+  uid: string,
+  displayName: string,
+): Promise<void> {
+  // Check invitation expiry
+  if (invData.expiresAt?.toDate && invData.expiresAt.toDate() < new Date()) {
+    await admin.firestore().doc(`invitations/${invitationId}`).update({
+      status: "expired",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+
+  const memberDocId = `${uid}_${invData.groupId}`;
+  const memberRef = admin.firestore().doc(`groupMembers/${memberDocId}`);
+  const memberSnap = await memberRef.get();
+  if (memberSnap.exists) {
+    // Idempotency: already a member, just update invitation status
+    await admin.firestore().doc(`invitations/${invitationId}`).update({
+      status: "accepted",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+  const batch = admin.firestore().batch();
+  batch.set(memberRef, {
+    groupId: invData.groupId,
+    uid,
+    displayName,
+    email: invData.email,
+    role: invData.role,
+    status: "active",
+    joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  batch.update(admin.firestore().doc(`invitations/${invitationId}`), {
+    status: "accepted",
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+}
+
 // Trigger: invitation created
 export const onInvitationCreated = onDocumentCreated(
   {
@@ -96,6 +141,20 @@ export const onInvitationCreated = onDocumentCreated(
     const data = event.data?.data() as InvitationData | undefined;
     if (!data) return;
     await sendInvitationEmail(event.params.invitationId, data);
+
+    // Auto-accept if the invited user already has an account
+    const usersSnap = await admin.firestore()
+      .collection("users")
+      .where("email", "==", data.email)
+      .limit(1)
+      .get();
+    if (!usersSnap.empty) {
+      const userDoc = usersSnap.docs[0];
+      await acceptInvitation(
+        event.params.invitationId, data,
+        userDoc.id, userDoc.data().displayName || userDoc.data().email || "",
+      );
+    }
   },
 );
 
@@ -114,6 +173,28 @@ export const onInvitationUpdated = onDocumentUpdated(
     if (after.emailSent === false && after.status === "pending" && after.emailError === null
       && (before.emailSent === true || before.emailError !== null)) {
       await sendInvitationEmail(event.params.invitationId, after);
+    }
+  },
+);
+
+// Trigger: user created — auto-accept pending invitations for this email
+export const onUserCreated = onDocumentCreated(
+  { document: "users/{uid}" },
+  async (event) => {
+    const userData = event.data?.data();
+    if (!userData?.email) return;
+
+    const invSnap = await admin.firestore()
+      .collection("invitations")
+      .where("email", "==", userData.email)
+      .where("status", "==", "pending")
+      .get();
+
+    for (const invDoc of invSnap.docs) {
+      await acceptInvitation(
+        invDoc.id, invDoc.data() as InvitationData,
+        event.params.uid, userData.displayName || userData.email.split("@")[0],
+      );
     }
   },
 );
