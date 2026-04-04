@@ -66,8 +66,7 @@ definePageMeta({ middleware: 'auth' })
 const { userProfile, isPlatformAdmin } = useAuth()
 const { getMyGroups, createGroup } = useGroups()
 const toast = useToast()
-const currentGroupId = useState<string | null>('currentGroupId')
-const currentGroupName = useState<string | null>('currentGroupName')
+const { currentGroupId, setCurrentGroup } = useCurrentGroup()
 
 const loading = ref(true)
 const groups = ref<any[]>([])
@@ -76,8 +75,7 @@ const creating = ref(false)
 const newGroup = reactive({ name: '', description: '' })
 
 const selectGroup = (g: any) => {
-  currentGroupId.value = g.id
-  currentGroupName.value = g.name
+  setCurrentGroup(g.id, g.name)
   navigateTo(`/groups/${g.id}`)
 }
 

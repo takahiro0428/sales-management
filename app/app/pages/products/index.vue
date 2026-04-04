@@ -127,7 +127,7 @@ const { getGroupProducts } = useProducts()
 const { getGroupMembers } = useGroups()
 const toast = useToast()
 
-const currentGroupId = useState<string | null>('currentGroupId')
+const { currentGroupId } = useCurrentGroup()
 const loading = ref(true)
 const products = ref<any[]>([])
 const members = ref<any[]>([])

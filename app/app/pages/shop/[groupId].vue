@@ -74,7 +74,7 @@
             @click="openDetail(product)"
           >
             <!-- Image -->
-            <div class="aspect-square bg-slate-50 overflow-hidden">
+            <div class="aspect-square bg-slate-50 overflow-hidden relative">
               <img
                 v-if="product.thumbnailUrl"
                 :src="product.thumbnailUrl"
@@ -84,6 +84,14 @@
               <div v-else class="w-full h-full flex items-center justify-center text-slate-200">
                 <Package :size="40" :stroke-width="1" />
               </div>
+              <button
+                @click.stop="toggleFavorite(product.id)"
+                class="absolute top-2 right-2 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center transition-colors"
+                :class="isFavorite(product.id) ? 'text-red-500' : 'text-slate-400 hover:text-red-400'"
+                :aria-label="isFavorite(product.id) ? 'お気に入りから削除' : 'お気に入りに追加'"
+              >
+                <Heart :size="16" :fill="isFavorite(product.id) ? 'currentColor' : 'none'" />
+              </button>
             </div>
             <!-- Info -->
             <div class="p-3">
@@ -125,16 +133,32 @@
             <!-- Modal Image -->
             <div class="aspect-video bg-slate-50 overflow-hidden rounded-t-3xl md:rounded-t-2xl relative">
               <img
-                v-if="detailProduct.imageUrl"
-                :src="detailProduct.imageUrl"
+                v-if="detailProduct.thumbnailUrl || detailProduct.imageUrl"
+                :src="detailProduct.thumbnailUrl || detailProduct.imageUrl"
                 :alt="detailProduct.name"
                 class="w-full h-full object-contain"
               />
               <div v-else class="w-full h-full flex items-center justify-center text-slate-200">
                 <Package :size="64" :stroke-width="1" />
               </div>
+              <button
+                @click.stop="toggleFavorite(detailProduct.id)"
+                class="absolute top-3 left-3 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center transition-colors"
+                :class="isFavorite(detailProduct.id) ? 'text-red-500' : 'text-slate-400 hover:text-red-400'"
+                :aria-label="isFavorite(detailProduct.id) ? 'お気に入りから削除' : 'お気に入りに追加'"
+              >
+                <Heart :size="16" :fill="isFavorite(detailProduct.id) ? 'currentColor' : 'none'" />
+              </button>
               <button @click="detailProduct = null" class="absolute top-3 right-3 w-8 h-8 bg-white/80 backdrop-blur-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-700">
                 <X :size="18" />
+              </button>
+              <button
+                v-if="detailProduct.imageUrl && detailProduct.thumbnailUrl"
+                @click.stop="showLightbox = true"
+                class="absolute bottom-3 right-3 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-black/60 transition-colors"
+                aria-label="画像を拡大"
+              >
+                <ZoomIn :size="16" />
               </button>
             </div>
             <!-- Modal Body -->
@@ -163,12 +187,36 @@
           </div>
         </div>
       </Teleport>
+      <!-- Lightbox -->
+      <Teleport to="body">
+        <div
+          v-if="showLightbox && detailProduct?.imageUrl"
+          class="fixed inset-0 z-[60] flex items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="商品画像の拡大表示"
+          @click.self="showLightbox = false"
+        >
+          <div class="absolute inset-0 bg-black/90" @click="showLightbox = false" />
+          <button
+            @click="showLightbox = false"
+            class="absolute top-4 right-4 z-10 w-10 h-10 bg-white/10 backdrop-blur-sm rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+          >
+            <X :size="22" />
+          </button>
+          <img
+            :src="detailProduct.imageUrl"
+            :alt="detailProduct.name"
+            class="relative max-w-[95vw] max-h-[90vh] object-contain animate-lightbox-in"
+          />
+        </div>
+      </Teleport>
     </NuxtLayout>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Search, SearchX, Package, X } from 'lucide-vue-next'
+import { Search, SearchX, Package, X, ZoomIn, Heart } from 'lucide-vue-next'
 import type { Product } from '~/composables/useProducts'
 
 definePageMeta({ layout: false })
@@ -177,6 +225,7 @@ const route = useRoute()
 const groupId = route.params.groupId as string
 
 const { getPublicProducts, getGroupInfo } = usePublicProducts()
+const { toggleFavorite, isFavorite } = useFavorites(groupId)
 
 const loading = ref(true)
 const products = ref<Product[]>([])
@@ -185,6 +234,11 @@ const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedTags = ref<string[]>([])
 const detailProduct = ref<Product | null>(null)
+const showLightbox = ref(false)
+
+watch(detailProduct, (val) => {
+  if (!val) showLightbox.value = false
+})
 
 const availableCategories = computed(() => {
   const cats = new Set(products.value.map((p) => p.category || 'その他'))
@@ -247,7 +301,18 @@ const stockStatusClass = (stock: number) => {
   return 'bg-sub2-100 text-sub2-500'
 }
 
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    if (showLightbox.value) {
+      showLightbox.value = false
+    } else if (detailProduct.value) {
+      detailProduct.value = null
+    }
+  }
+}
+
 onMounted(async () => {
+  window.addEventListener('keydown', handleKeydown)
   try {
     const [productList, groupInfo] = await Promise.all([
       getPublicProducts(groupId),
@@ -260,6 +325,10 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -290,6 +359,13 @@ onMounted(async () => {
 }
 @keyframes scaleIn {
   from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-lightbox-in {
+  animation: lightboxIn 0.2s ease-out;
+}
+@keyframes lightboxIn {
+  from { transform: scale(0.9); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
 </style>

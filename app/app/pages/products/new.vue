@@ -128,7 +128,7 @@ const { getGroupMembers } = useGroups()
 const { suggestCategoryAndTags } = useAiSuggestion()
 const toast = useToast()
 
-const currentGroupId = useState<string | null>('currentGroupId')
+const { currentGroupId } = useCurrentGroup()
 const members = ref<any[]>([])
 const submitting = ref(false)
 const aiSuggesting = ref(false)

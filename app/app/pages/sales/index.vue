@@ -161,7 +161,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { getGroupSales, getSalesSummary } = useSales()
 const toast = useToast()
-const currentGroupId = useState<string | null>('currentGroupId')
+const { currentGroupId } = useCurrentGroup()
 
 const loading = ref(true)
 const activeTab = ref('summary')

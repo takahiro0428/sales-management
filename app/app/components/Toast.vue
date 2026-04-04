@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
+    <div class="fixed top-4 left-4 right-4 sm:left-auto z-50 space-y-2 sm:max-w-sm sm:w-full pointer-events-none">
       <TransitionGroup name="toast">
         <div
           v-for="toast in toasts"
@@ -16,7 +16,7 @@
           <span class="text-lg shrink-0">
             {{ toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : toast.type === 'warning' ? '⚠️' : 'ℹ️' }}
           </span>
-          <p class="text-sm text-slate-700 flex-1">{{ toast.message }}</p>
+          <p class="text-sm text-slate-700 flex-1 break-words">{{ toast.message }}</p>
           <button @click="removeToast(toast.id)" class="text-slate-400 hover:text-slate-600 shrink-0">&times;</button>
         </div>
       </TransitionGroup>
@@ -42,6 +42,6 @@ const removeToast = (id: number) => {
 .toast-enter-active { animation: slideIn 0.3s ease-out; }
 .toast-leave-active { animation: slideOut 0.2s ease-in; }
 .toast-move { transition: transform 0.3s ease; }
-@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+@keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slideOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-100%); opacity: 0; } }
 </style>
