@@ -7,6 +7,7 @@ admin.initializeApp();
 
 const gmailUser = defineSecret("GMAIL_USER");
 const gmailAppPassword = defineSecret("GMAIL_APP_PASSWORD");
+const gmailSenderName = defineSecret("GMAIL_SENDER_NAME");
 
 interface InvitationData {
   groupId: string;
@@ -35,7 +36,7 @@ async function sendInvitationEmail(
   });
 
   const mailOptions: nodemailer.SendMailOptions = {
-    from: `フリマ売上管理 <${gmailUser.value()}>`,
+    from: `${gmailSenderName.value() || "フリマ売上管理"} <${gmailUser.value()}>`,
     to: data.email,
     subject: `[フリマ売上管理] ${data.groupName} への招待`,
     html: `
@@ -86,7 +87,7 @@ async function sendInvitationEmail(
 export const onInvitationCreated = onDocumentCreated(
   {
     document: "invitations/{invitationId}",
-    secrets: [gmailUser, gmailAppPassword],
+    secrets: [gmailUser, gmailAppPassword, gmailSenderName],
   },
   async (event) => {
     const data = event.data?.data() as InvitationData | undefined;
@@ -99,7 +100,7 @@ export const onInvitationCreated = onDocumentCreated(
 export const onInvitationUpdated = onDocumentUpdated(
   {
     document: "invitations/{invitationId}",
-    secrets: [gmailUser, gmailAppPassword],
+    secrets: [gmailUser, gmailAppPassword, gmailSenderName],
   },
   async (event) => {
     const before = event.data?.before.data() as InvitationData | undefined;
