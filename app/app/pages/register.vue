@@ -62,7 +62,9 @@ const handleRegister = async () => {
   } catch (e: any) {
     const msg = e.code === 'auth/email-already-in-use' ? 'このメールアドレスは既に登録されています'
       : e.code === 'auth/weak-password' ? 'パスワードが弱すぎます。6文字以上で設定してください'
-      : '登録に失敗しました'
+      : e.code === 'auth/configuration-not-found' || e.message?.includes('CONFIGURATION_NOT_FOUND')
+        ? 'システムの設定に問題があります。管理者にお問い合わせください'
+        : '登録に失敗しました'
     toast.error(msg)
   } finally {
     loading.value = false
