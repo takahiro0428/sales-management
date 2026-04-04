@@ -56,9 +56,42 @@ jobs:
       - name: Install firebase-tools
         run: npm install -g firebase-tools@13.22.0
 
+      # Firestore rules are security-critical; failure will fail the workflow (see final step).
+      # continue-on-error allows Storage deploy to run before failing.
       - name: Deploy Firestore Rules and Indexes
+        id: firestore-deploy
+        continue-on-error: true
         run: firebase deploy --only firestore:rules,firestore:indexes --project ${{ secrets.FIREBASE_PROJECT_ID }}
 
+      - name: Diagnose Firestore deploy failure
+        if: ${{ steps.firestore-deploy.outcome == 'failure' }}
+        run: |
+          echo "::error::Firestore Rules/Indexes deployment failed. The service account likely lacks required IAM roles."
+          cat >> $GITHUB_STEP_SUMMARY <<'EOF'
+          ### Firestore Rules/Indexes deploy failed
+
+          The service account in `FIREBASE_SERVICE_ACCOUNT` needs additional IAM roles.
+
+          **Option A (recommended):** `roles/firebase.admin`
+          **Option B (least privilege):** `roles/firebaserules.admin` + `roles/datastore.indexAdmin`
+
+          ```bash
+          # Check current roles
+          gcloud projects get-iam-policy PROJECT_ID \
+            --flatten='bindings[].members' \
+            --filter='bindings.members:serviceAccount:SA_EMAIL' \
+            --format='table(bindings.role)'
+
+          # Grant Firebase Admin role
+          gcloud projects add-iam-policy-binding PROJECT_ID \
+            --member='serviceAccount:SA_EMAIL' \
+            --role='roles/firebase.admin'
+          ```
+
+          See `DEPLOY.md` for details.
+          EOF
+
+      # Storage rules are auxiliary; failure is non-blocking (warning only).
       - name: Deploy Storage Rules (non-blocking)
         id: storage-deploy
         continue-on-error: true
@@ -67,7 +100,14 @@ jobs:
       - name: Warn if Storage Rules deploy failed
         if: ${{ steps.storage-deploy.outcome == 'failure' }}
         run: |
-          echo "::warning::Storage Rules deployment failed. The service account may lack serviceusage.services.get permission. Firestore rules and indexes were deployed successfully."
-          echo "### ⚠️ Storage Rules deploy failed" >> $GITHUB_STEP_SUMMARY
-          echo "The service account may lack \`serviceusage.services.get\` permission for \`firebasestorage.googleapis.com\`." >> $GITHUB_STEP_SUMMARY
-          echo "Firestore rules and indexes were deployed successfully." >> $GITHUB_STEP_SUMMARY
+          echo "::warning::Storage Rules deployment failed. The service account may lack required roles (firebasestorage.admin, serviceusage.serviceUsageConsumer)."
+          cat >> $GITHUB_STEP_SUMMARY <<'EOF'
+          ### Storage Rules deploy failed (non-blocking)
+
+          The service account may lack `roles/firebasestorage.admin` or `roles/serviceusage.serviceUsageConsumer` (`serviceusage.services.get` permission).
+          See `DEPLOY.md` for details.
+          EOF
+
+      - name: Fail if Firestore deploy failed
+        if: ${{ steps.firestore-deploy.outcome == 'failure' }}
+        run: exit 1

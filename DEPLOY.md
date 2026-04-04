@@ -32,6 +32,40 @@ Firebase Console > Storage でストレージを作成してください。
 デフォルトのホスティングサイトを使用するか、カスタムサイトを作成できます。
 カスタムサイトを使用する場合は `FIREBASE_HOSTING_SITE` シークレットを設定してください。
 
+## サービスアカウントの IAM ロール設定
+
+`FIREBASE_SERVICE_ACCOUNT` に使用するサービスアカウントには、以下の IAM ロールが必要です。
+
+### 必要なロール
+
+| デプロイ対象 | 必要なロール | 備考 |
+|---|---|---|
+| Hosting | `roles/firebasehosting.admin` | Firebase Hosting Admin |
+| Firestore ルール | `roles/firebaserules.admin` | Firebase Rules Admin |
+| Firestore インデックス | `roles/datastore.indexAdmin` | Cloud Datastore Index Admin |
+| Storage ルール | `roles/firebasestorage.admin` | Cloud Storage Firebase Admin。権限不足時はスキップ（警告のみ） |
+
+> **注意:** Storage ルールのデプロイには、上記ロールに加えて `roles/serviceusage.serviceUsageConsumer`（`serviceusage.services.get` 権限を含む）も必要な場合があります。
+
+> **推奨:** 上記個別ロールの代わりに `roles/firebase.admin`（Firebase Admin）を付与すると、すべての Firebase サービスへのデプロイが可能です。
+
+### ロールの確認・付与方法
+
+```bash
+# サービスアカウントの現在のロールを確認
+gcloud projects get-iam-policy PROJECT_ID \
+  --flatten='bindings[].members' \
+  --filter='bindings.members:serviceAccount:SA_EMAIL' \
+  --format='table(bindings.role)'
+
+# Firebase Admin ロールを付与（推奨）
+gcloud projects add-iam-policy-binding PROJECT_ID \
+  --member='serviceAccount:SA_EMAIL' \
+  --role='roles/firebase.admin'
+```
+
+> サービスアカウントのメールアドレスは、JSON キーファイル内の `client_email` フィールドで確認できます。
+
 ## GitHub Repository Secrets の設定
 
 GitHub リポジトリの Settings > Secrets and variables > Actions で以下のシークレットを設定してください:
@@ -41,7 +75,7 @@ GitHub リポジトリの Settings > Secrets and variables > Actions で以下�
 | シークレット名 | 説明 | 取得方法 |
 |---|---|---|
 | `FIREBASE_PROJECT_ID` | Firebase プロジェクト ID | Firebase Console > プロジェクト設定 |
-| `FIREBASE_SERVICE_ACCOUNT` | サービスアカウントの JSON キー | Firebase Console > プロジェクト設定 > サービスアカウント > 新しい秘密鍵の生成 |
+| `FIREBASE_SERVICE_ACCOUNT` | サービスアカウントの JSON キー | Firebase Console > プロジェクト設定 > サービスアカウント > 新しい秘密鍵の生成（[IAM ロール設定](#サービスアカウントの-iam-ロール設定)も必要） |
 | `NUXT_PUBLIC_FIREBASE_API_KEY` | Firebase API キー | Firebase Console > プロジェクト設定 > マイアプリ > ウェブアプリ |
 | `NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Auth ドメイン | 同上（例: `your-project.firebaseapp.com`） |
 | `NUXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase プロジェクト ID | 同上 |
@@ -84,6 +118,12 @@ cp .env.example .env
 # .env ファイルに Firebase の設定値を記入
 npm install
 npm run dev
+```
+
+ローカルで Firebase CLI を使用する場合は、プロジェクトを明示的に指定してください:
+
+```bash
+firebase use --add  # プロジェクトを選択して登録
 ```
 
 ## PWA アイコンの生成
