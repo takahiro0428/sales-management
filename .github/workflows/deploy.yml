@@ -56,5 +56,18 @@ jobs:
       - name: Install firebase-tools
         run: npm install -g firebase-tools@13.22.0
 
-      - name: Deploy Firestore Rules, Indexes, and Storage Rules
-        run: firebase deploy --only firestore:rules,firestore:indexes,storage --project ${{ secrets.FIREBASE_PROJECT_ID }}
+      - name: Deploy Firestore Rules and Indexes
+        run: firebase deploy --only firestore:rules,firestore:indexes --project ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Deploy Storage Rules (non-blocking)
+        id: storage-deploy
+        continue-on-error: true
+        run: firebase deploy --only storage --project ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Warn if Storage Rules deploy failed
+        if: ${{ steps.storage-deploy.outcome == 'failure' }}
+        run: |
+          echo "::warning::Storage Rules deployment failed. The service account may lack serviceusage.services.get permission. Firestore rules and indexes were deployed successfully."
+          echo "### ⚠️ Storage Rules deploy failed" >> $GITHUB_STEP_SUMMARY
+          echo "The service account may lack \`serviceusage.services.get\` permission for \`firebasestorage.googleapis.com\`." >> $GITHUB_STEP_SUMMARY
+          echo "Firestore rules and indexes were deployed successfully." >> $GITHUB_STEP_SUMMARY

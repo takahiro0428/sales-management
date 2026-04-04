@@ -25,7 +25,7 @@ Firebase Console > Firestore Database でデータベースを作成してくだ
 
 Firebase Console > Storage でストレージを作成してください。
 - デフォルトバケットまたはカスタムバケット名を設定可能
-- セキュリティルールは本リポジトリの `storage.rules` が自動デプロイされます
+- セキュリティルールは本リポジトリの `storage.rules` が自動デプロイされます（サービスアカウントに `serviceusage.services.get` 権限が必要。権限不足時は警告のみでデプロイはスキップされます）
 
 ### 4. Hosting の設定
 
@@ -66,7 +66,7 @@ GitHub リポジトリの Settings > Secrets and variables > Actions で以下�
 2. Firebase Hosting へのデプロイ
 3. Firestore セキュリティルールのデプロイ
 4. Firestore インデックスのデプロイ
-5. Storage セキュリティルールのデプロイ
+5. Storage セキュリティルールのデプロイ（※サービスアカウントの権限不足時はスキップされ、警告が表示されます）
 
 ### プレビューデプロイ
 
