@@ -10,6 +10,25 @@
           <p class="text-slate-500 mt-2">全 {{ products.length }} 商品</p>
         </div>
 
+        <!-- Tabs -->
+        <div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-6 max-w-xs mx-auto">
+          <button
+            @click="activeTab = 'all'"
+            class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+            :class="activeTab === 'all' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
+          >
+            すべて
+          </button>
+          <button
+            @click="activeTab = 'favorites'"
+            class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap inline-flex items-center justify-center gap-1"
+            :class="activeTab === 'favorites' ? 'bg-white text-red-500 shadow-sm' : 'text-slate-500'"
+          >
+            <Heart :size="14" :fill="activeTab === 'favorites' ? 'currentColor' : 'none'" />
+            お気に入り
+          </button>
+        </div>
+
         <!-- Search -->
         <div class="mb-6">
           <div class="relative max-w-md mx-auto">
@@ -113,8 +132,9 @@
 
         <!-- No results -->
         <div v-else class="text-center py-12">
-          <SearchX :size="48" class="mx-auto text-slate-200 mb-3" :stroke-width="1.5" />
-          <p class="text-slate-500">条件に一致する商品がありません</p>
+          <Heart v-if="activeTab === 'favorites'" :size="48" class="mx-auto text-slate-200 mb-3" :stroke-width="1.5" />
+          <SearchX v-else :size="48" class="mx-auto text-slate-200 mb-3" :stroke-width="1.5" />
+          <p class="text-slate-500">{{ activeTab === 'favorites' ? 'お気に入りの商品がありません' : '条件に一致する商品がありません' }}</p>
         </div>
       </template>
 
@@ -233,6 +253,7 @@ const groupName = ref('')
 const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedTags = ref<string[]>([])
+const activeTab = ref('all')
 const detailProduct = ref<Product | null>(null)
 const showLightbox = ref(false)
 
@@ -257,6 +278,9 @@ const availableTags = computed(() => {
 
 const filteredProducts = computed(() => {
   let result = products.value
+  if (activeTab.value === 'favorites') {
+    result = result.filter((p) => isFavorite(p.id))
+  }
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     result = result.filter((p) =>
