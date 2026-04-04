@@ -14,23 +14,47 @@
     </div>
 
     <form v-else @submit.prevent="handleSubmit" class="card space-y-5 max-w-lg">
+      <!-- AI Auto Mode Toggle -->
+      <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="aiAutoMode"
+            @click="aiAutoMode = !aiAutoMode"
+            class="relative w-10 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-300"
+            :class="aiAutoMode ? 'bg-primary-500' : 'bg-slate-200'"
+          >
+            <span class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform" :class="aiAutoMode ? 'translate-x-4' : ''" />
+          </button>
+          <span class="text-sm font-medium text-slate-600">AI自動入力モード</span>
+        </label>
+        <Sparkles v-if="aiAutoMode" :size="16" class="text-primary-500" />
+      </div>
+      <p v-if="aiAutoMode" class="text-xs text-slate-400 -mt-3">写真から商品名・説明・カテゴリ・タグを自動入力します</p>
+
       <!-- Image Upload -->
       <div>
         <label class="label-text">商品画像</label>
         <div
-          class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-primary-300 transition-colors"
+          class="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors"
+          :class="aiAutoMode ? 'border-primary-300 hover:border-primary-400 bg-primary-50/30' : 'border-slate-200 hover:border-primary-300'"
           @click="triggerFileInput"
           @dragover.prevent
           @drop.prevent="handleDrop"
         >
-          <img v-if="imagePreview" :src="imagePreview" class="mx-auto max-h-48 rounded-lg mb-2" />
+          <div v-if="aiSuggesting" class="text-primary-500">
+            <LoadingSpinner size="lg" class="mx-auto mb-2" />
+            <p class="text-sm">AI分析中...</p>
+          </div>
+          <img v-else-if="imagePreview" :src="imagePreview" class="mx-auto max-h-48 rounded-lg mb-2" />
           <div v-else class="text-slate-400">
             <Camera :size="36" class="mx-auto mb-2" :stroke-width="1.5" />
-            <p class="text-sm text-slate-500">クリックまたはドラッグで画像を追加</p>
+            <p class="text-sm text-slate-500">{{ aiAutoMode ? '写真を追加するとAIが自動入力します' : 'クリックまたはドラッグで画像を追加' }}</p>
           </div>
         </div>
-        <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFileSelect" />
-        <button v-if="imagePreview" type="button" @click="clearImage" class="text-sm text-red-500 mt-2">画像を削除</button>
+        <input ref="fileInput" type="file" accept="image/*" capture="environment" class="hidden" @change="handleFileSelect" />
+        <button v-if="imagePreview && !aiSuggesting" type="button" @click="clearImage" class="text-sm text-red-500 mt-2">画像を削除</button>
       </div>
 
       <div>
@@ -125,7 +149,7 @@ definePageMeta({ middleware: 'auth' })
 const { userProfile } = useAuth()
 const { createProduct } = useProducts()
 const { getGroupMembers } = useGroups()
-const { suggestCategoryAndTags } = useAiSuggestion()
+const { suggestCategoryAndTags, suggestFromImage } = useAiSuggestion()
 const toast = useToast()
 
 const { currentGroupId } = useCurrentGroup()
@@ -136,6 +160,8 @@ const imageFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement>()
 const tagInput = ref('')
+const aiAutoMode = ref(false)
+let aiAutoFillGeneration = 0
 
 const triggerFileInput = () => {
   fileInput.value?.click()
@@ -153,7 +179,7 @@ const form = reactive({
 
 const handleFileSelect = (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) setImage(file)
+  if (file && file.type.startsWith('image/')) setImage(file)
 }
 
 const handleDrop = (e: DragEvent) => {
@@ -165,6 +191,35 @@ const setImage = (file: File) => {
   if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
   imageFile.value = file
   imagePreview.value = URL.createObjectURL(file)
+  if (aiAutoMode.value) {
+    handleAiAutoFill(file)
+  }
+}
+
+const handleAiAutoFill = async (file: File) => {
+  const generation = ++aiAutoFillGeneration
+  aiSuggesting.value = true
+  try {
+    const result = await suggestFromImage(file)
+    if (generation !== aiAutoFillGeneration) return // stale result
+    if (result.name) {
+      form.name = result.name
+      form.description = result.description
+      form.category = result.category
+      form.tags = result.tags
+      toast.success('AIが商品情報を入力しました')
+    } else {
+      toast.warning('AIが商品情報を判定できませんでした。手動で入力してください')
+    }
+  } catch {
+    if (generation === aiAutoFillGeneration) {
+      toast.error('AI自動入力に失敗しました')
+    }
+  } finally {
+    if (generation === aiAutoFillGeneration) {
+      aiSuggesting.value = false
+    }
+  }
 }
 
 const clearImage = () => {
@@ -220,7 +275,15 @@ const handleSubmit = async () => {
       form.tags,
     )
     toast.success('商品を登録しました')
-    navigateTo('/products')
+    form.name = ''
+    form.description = ''
+    form.price = 0
+    form.ownerUid = userProfile.value?.uid || ''
+    form.stock = 0
+    form.category = 'その他'
+    form.tags = []
+    tagInput.value = ''
+    clearImage()
   } catch (e) {
     toast.error('商品の登録に失敗しました')
   } finally {

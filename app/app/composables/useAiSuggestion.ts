@@ -6,6 +6,11 @@ export interface AiSuggestion {
   tags: string[]
 }
 
+export interface AiImageSuggestion extends AiSuggestion {
+  name: string
+  description: string
+}
+
 export const useAiSuggestion = () => {
   const { $vertexAI } = useNuxtApp()
   const config = useRuntimeConfig()
@@ -60,5 +65,65 @@ ${PRODUCT_CATEGORIES.join(', ')}
     }
   }
 
-  return { suggestCategoryAndTags }
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = reader.result as string
+        const base64 = dataUrl.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const suggestFromImage = async (file: File): Promise<AiImageSuggestion> => {
+    try {
+      const modelName = config.public.vertexAiModel || 'gemini-2.5-flash'
+      const model = getGenerativeModel($vertexAI, { model: modelName })
+
+      const base64Data = await fileToBase64(file)
+
+      const prompt = `あなたはフリーマーケット商品の分析専門家です。
+この商品画像を分析して、以下の情報を提案してください。
+
+カテゴリは以下から1つ選んでください:
+${PRODUCT_CATEGORIES.join(', ')}
+
+タグは商品の特徴を表す短いキーワードを3〜5個提案してください。
+
+以下のJSON形式で回答してください（JSONのみ、他のテキストは不要）:
+{"name": "商品名", "description": "商品の説明文（2〜3文）", "category": "カテゴリ名", "tags": ["タグ1", "タグ2", "タグ3"]}`
+
+      const result = await model.generateContent([
+        { inlineData: { mimeType: file.type, data: base64Data } },
+        { text: prompt },
+      ])
+      const text = result.response.text()
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        return { name: '', description: '', category: 'その他', tags: [] }
+      }
+
+      const parsed = JSON.parse(jsonMatch[0])
+
+      const name = typeof parsed.name === 'string' ? parsed.name : ''
+      const description = typeof parsed.description === 'string' ? parsed.description : ''
+      const category = PRODUCT_CATEGORIES.includes(parsed.category)
+        ? parsed.category
+        : 'その他'
+      const tags = Array.isArray(parsed.tags)
+        ? parsed.tags.filter((t: unknown) => typeof t === 'string' && t.length > 0).slice(0, 5)
+        : []
+
+      return { name, description, category, tags }
+    } catch (e) {
+      console.warn('[AI Suggestion] 画像からの自動生成に失敗しました:', e)
+      return { name: '', description: '', category: 'その他', tags: [] }
+    }
+  }
+
+  return { suggestCategoryAndTags, suggestFromImage }
 }
