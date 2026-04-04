@@ -53,9 +53,36 @@
             <p class="text-sm text-slate-500">{{ aiAutoMode ? '写真を追加するとAIが自動入力します' : 'クリックまたはドラッグで画像を追加' }}</p>
           </div>
         </div>
-        <input ref="fileInput" type="file" accept="image/*" capture="environment" class="hidden" @change="handleFileSelect" />
+        <input ref="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" @change="handleFileSelect" />
+        <input ref="galleryInput" type="file" accept="image/*" class="hidden" @change="handleFileSelect" />
         <button v-if="imagePreview && !aiSuggesting" type="button" @click="clearImage" class="text-sm text-red-500 mt-2">画像を削除</button>
       </div>
+
+      <!-- Image Source Action Sheet -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="showImagePicker" class="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" @click.self="showImagePicker = false">
+            <Transition name="slide-up">
+              <div v-if="showImagePicker" class="bg-white w-full sm:w-80 sm:rounded-xl rounded-t-xl overflow-hidden safe-bottom">
+                <div class="px-4 pt-4 pb-2 text-center text-sm font-medium text-slate-500">画像を追加</div>
+                <button type="button" @click="selectCamera" class="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-slate-50 active:bg-slate-100">
+                  <Camera :size="20" class="text-primary-500" />
+                  <span class="text-sm font-medium text-slate-700">カメラで撮影</span>
+                </button>
+                <button type="button" @click="selectGallery" class="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-slate-50 active:bg-slate-100">
+                  <ImageIcon :size="20" class="text-primary-500" />
+                  <span class="text-sm font-medium text-slate-700">ライブラリから選択</span>
+                </button>
+                <div class="border-t border-slate-100">
+                  <button type="button" @click="showImagePicker = false" class="w-full px-4 py-3 text-center text-sm font-medium text-slate-400 hover:bg-slate-50 active:bg-slate-100">
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
+        </Transition>
+      </Teleport>
 
       <div>
         <label class="label-text">商品名 <span class="text-red-400">*</span></label>
@@ -141,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, Camera, Users, Sparkles, X } from 'lucide-vue-next'
+import { ArrowLeft, Camera, Users, Sparkles, X, Image as ImageIcon } from 'lucide-vue-next'
 import { PRODUCT_CATEGORIES } from '~/composables/useProducts'
 
 definePageMeta({ middleware: 'auth' })
@@ -158,13 +185,25 @@ const submitting = ref(false)
 const aiSuggesting = ref(false)
 const imageFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
-const fileInput = ref<HTMLInputElement>()
+const cameraInput = ref<HTMLInputElement>()
+const galleryInput = ref<HTMLInputElement>()
+const showImagePicker = ref(false)
 const tagInput = ref('')
 const aiAutoMode = ref(false)
 let aiAutoFillGeneration = 0
 
 const triggerFileInput = () => {
-  fileInput.value?.click()
+  showImagePicker.value = true
+}
+
+const selectCamera = () => {
+  showImagePicker.value = false
+  nextTick(() => cameraInput.value?.click())
+}
+
+const selectGallery = () => {
+  showImagePicker.value = false
+  nextTick(() => galleryInput.value?.click())
 }
 
 const form = reactive({
@@ -178,8 +217,10 @@ const form = reactive({
 })
 
 const handleFileSelect = (e: Event) => {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (file && file.type.startsWith('image/')) setImage(file)
+  input.value = ''
 }
 
 const handleDrop = (e: DragEvent) => {
@@ -272,7 +313,7 @@ const handleSubmit = async () => {
       imageFile.value,
       form.description,
       form.category,
-      form.tags,
+      [...form.tags],
     )
     toast.success('商品を登録しました')
     form.name = ''
@@ -301,3 +342,27 @@ onBeforeUnmount(() => {
   if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
 })
 </script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.slide-up-enter-active {
+  transition: transform 0.25s ease-out;
+}
+.slide-up-leave-active {
+  transition: transform 0.2s ease-in;
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+</style>
