@@ -37,10 +37,12 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 
+const route = useRoute()
 const { register } = useAuth()
 const toast = useToast()
 const displayName = ref('')
-const email = ref('')
+const rawEmail = (route.query.email as string) || ''
+const email = ref(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : '')
 const password = ref('')
 const passwordConfirm = ref('')
 const loading = ref(false)

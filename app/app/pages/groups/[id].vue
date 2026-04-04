@@ -45,7 +45,7 @@
       <!-- Members Tab -->
       <div v-if="activeTab === 'members'">
         <div v-if="canManage" class="mb-4">
-          <button @click="showInviteModal = true" class="btn-primary btn-sm w-full sm:w-auto">
+          <button @click="lastInvitedLink = ''; showInviteModal = true" class="btn-primary btn-sm w-full sm:w-auto">
             <UserPlus :size="16" />
             メンバーを招待
           </button>
@@ -65,9 +65,10 @@
                 </div>
                 <p class="text-xs text-slate-400 truncate">{{ m.email }}</p>
               </div>
-              <div v-if="canManage && m.uid !== userProfile?.uid" class="shrink-0">
+              <div v-if="canManage && m.uid !== userProfile?.uid" class="flex items-center gap-1 shrink-0">
                 <button v-if="m.status === 'active'" @click="handleSuspend(m)" class="btn-secondary btn-sm text-xs">停止</button>
                 <button v-else @click="handleReactivate(m)" class="btn-success btn-sm text-xs">復帰</button>
+                <button @click="handleRemoveMember(m)" class="btn-danger btn-sm text-xs">除名</button>
               </div>
             </div>
           </div>
@@ -89,11 +90,17 @@
                 <span>{{ inv.invitedByName }}が招待</span>
                 <span v-if="inv.role === 'groupAdmin'" class="ml-1">(管理者として)</span>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap justify-end">
                 <span v-if="inv.emailSent === false && inv.emailError" class="text-xs text-red-500">送信失敗</span>
                 <span v-else-if="inv.emailSent" class="text-xs text-emerald-500">送信済み</span>
-                <button v-if="inv.status === 'failed' || (inv.status === 'pending' && !inv.emailSent)"
+                <button v-if="inv.status === 'pending' || inv.status === 'failed'"
+                  @click="copyInvitationLink(inv)" class="btn-secondary btn-sm text-xs">
+                  <Link2 :size="12" />リンク
+                </button>
+                <button v-if="inv.status === 'pending' || inv.status === 'failed'"
                   @click="handleResend(inv.id)" class="btn-secondary btn-sm text-xs">再送信</button>
+                <button v-if="inv.status === 'pending' || inv.status === 'failed'"
+                  @click="handleCancelInvitation(inv)" class="btn-danger btn-sm text-xs">取消</button>
               </div>
             </div>
             <p v-if="inv.emailError" class="text-xs text-red-400 mt-1">エラー: {{ inv.emailError }}</p>
@@ -118,26 +125,39 @@
         <div v-if="showInviteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div class="absolute inset-0 bg-black/40" @click="showInviteModal = false" />
           <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 class="text-lg font-semibold text-slate-800 mb-4">メンバーを招待</h3>
-            <form @submit.prevent="handleInvite" class="space-y-4">
-              <div>
-                <label class="label-text">メールアドレス <span class="text-red-400">*</span></label>
-                <input v-model="inviteForm.email" type="email" class="input-field" placeholder="mail@example.com" required />
-              </div>
-              <div>
-                <label class="label-text">ロール</label>
-                <select v-model="inviteForm.role" class="input-field">
-                  <option value="member">メンバー</option>
-                  <option value="groupAdmin">グループ管理者</option>
-                </select>
-              </div>
-              <div class="flex gap-3">
-                <button type="button" @click="showInviteModal = false" class="btn-secondary flex-1">キャンセル</button>
-                <button type="submit" class="btn-primary flex-1" :disabled="inviting">
-                  {{ inviting ? '送信中...' : '招待する' }}
+            <template v-if="lastInvitedLink">
+              <h3 class="text-lg font-semibold text-slate-800 mb-4">招待を送信しました</h3>
+              <p class="text-sm text-slate-500 mb-3">メール送信に加えて、以下のリンクをLINE等で共有できます。</p>
+              <div class="flex items-center gap-2 mb-4">
+                <input :value="lastInvitedLink" readonly class="input-field text-xs flex-1" />
+                <button @click="copyLink(lastInvitedLink)" class="btn-primary btn-sm shrink-0">
+                  <Link2 :size="14" />コピー
                 </button>
               </div>
-            </form>
+              <button @click="showInviteModal = false; lastInvitedLink = ''" class="btn-secondary w-full">閉じる</button>
+            </template>
+            <template v-else>
+              <h3 class="text-lg font-semibold text-slate-800 mb-4">メンバーを招待</h3>
+              <form @submit.prevent="handleInvite" class="space-y-4">
+                <div>
+                  <label class="label-text">メールアドレス <span class="text-red-400">*</span></label>
+                  <input v-model="inviteForm.email" type="email" class="input-field" placeholder="mail@example.com" required />
+                </div>
+                <div>
+                  <label class="label-text">ロール</label>
+                  <select v-model="inviteForm.role" class="input-field">
+                    <option value="member">メンバー</option>
+                    <option value="groupAdmin">グループ管理者</option>
+                  </select>
+                </div>
+                <div class="flex gap-3">
+                  <button type="button" @click="showInviteModal = false" class="btn-secondary flex-1">キャンセル</button>
+                  <button type="submit" class="btn-primary flex-1" :disabled="inviting">
+                    {{ inviting ? '送信中...' : '招待する' }}
+                  </button>
+                </div>
+              </form>
+            </template>
           </div>
         </div>
       </Teleport>
@@ -151,17 +171,35 @@
       danger-mode
       @confirm="confirmSuspend"
     />
+
+    <ConfirmDialog
+      v-model="showCancelInvitationConfirm"
+      title="招待を取り消し"
+      :message="`${cancelInvitationTarget?.email} への招待を取り消しますか？`"
+      confirm-text="取り消す"
+      danger-mode
+      @confirm="confirmCancelInvitation"
+    />
+
+    <ConfirmDialog
+      v-model="showRemoveMemberConfirm"
+      title="メンバーを除名"
+      :message="`${removeMemberTarget?.displayName} をグループから除名しますか？この操作は取り消せません。`"
+      confirm-text="除名する"
+      danger-mode
+      @confirm="confirmRemoveMember"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, UserPlus, Mail } from 'lucide-vue-next'
+import { ArrowLeft, UserPlus, Mail, Link2 } from 'lucide-vue-next'
 
 definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const { userProfile, isPlatformAdmin } = useAuth()
-const { getGroup, getGroupMembers, getGroupInvitations, inviteMember, resendInvitation, suspendMember, reactivateMember, isGroupAdmin } = useGroups()
+const { getGroup, getGroupMembers, getGroupInvitations, inviteMember, resendInvitation, cancelInvitation, suspendMember, reactivateMember, removeMember, isGroupAdmin } = useGroups()
 const toast = useToast()
 const { currentGroupId, setCurrentGroup } = useCurrentGroup()
 
@@ -176,6 +214,11 @@ const showInviteModal = ref(false)
 const inviting = ref(false)
 const showSuspendConfirm = ref(false)
 const suspendTarget = ref<any>(null)
+const showCancelInvitationConfirm = ref(false)
+const cancelInvitationTarget = ref<any>(null)
+const showRemoveMemberConfirm = ref(false)
+const removeMemberTarget = ref<any>(null)
+const lastInvitedLink = ref('')
 
 const inviteForm = reactive({ email: '', role: 'member' as 'member' | 'groupAdmin' })
 
@@ -216,8 +259,9 @@ const handleInvite = async () => {
       userProfile.value!.uid,
       userProfile.value!.displayName,
     )
+    const link = `${window.location.origin}/register?email=${encodeURIComponent(inviteForm.email)}`
+    lastInvitedLink.value = link
     toast.success('招待を送信しました')
-    showInviteModal.value = false
     inviteForm.email = ''
     inviteForm.role = 'member'
     invitations.value = await getGroupInvitations(groupId)
@@ -228,6 +272,24 @@ const handleInvite = async () => {
   }
 }
 
+const getInvitationLink = (inv: any) => {
+  if (typeof window === 'undefined') return ''
+  return `${window.location.origin}/register?email=${encodeURIComponent(inv.email)}`
+}
+
+const copyInvitationLink = async (inv: any) => {
+  await copyLink(getInvitationLink(inv))
+}
+
+const copyLink = async (link: string) => {
+  try {
+    await navigator.clipboard.writeText(link)
+    toast.success('招待リンクをコピーしました')
+  } catch {
+    toast.error('コピーに失敗しました')
+  }
+}
+
 const handleResend = async (invId: string) => {
   try {
     await resendInvitation(invId)
@@ -235,6 +297,38 @@ const handleResend = async (invId: string) => {
     invitations.value = await getGroupInvitations(groupId)
   } catch (e) {
     toast.error('再送信に失敗しました')
+  }
+}
+
+const handleCancelInvitation = (inv: any) => {
+  cancelInvitationTarget.value = inv
+  showCancelInvitationConfirm.value = true
+}
+
+const confirmCancelInvitation = async () => {
+  if (!cancelInvitationTarget.value) return
+  try {
+    await cancelInvitation(cancelInvitationTarget.value.id)
+    invitations.value = invitations.value.filter((i: any) => i.id !== cancelInvitationTarget.value.id)
+    toast.success('招待を取り消しました')
+  } catch (e) {
+    toast.error('招待の取り消しに失敗しました')
+  }
+}
+
+const handleRemoveMember = (member: any) => {
+  removeMemberTarget.value = member
+  showRemoveMemberConfirm.value = true
+}
+
+const confirmRemoveMember = async () => {
+  if (!removeMemberTarget.value) return
+  try {
+    await removeMember(removeMemberTarget.value.id)
+    members.value = members.value.filter((m: any) => m.id !== removeMemberTarget.value.id)
+    toast.success('メンバーを除名しました')
+  } catch (e) {
+    toast.error('除名に失敗しました')
   }
 }
 

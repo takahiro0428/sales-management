@@ -10,7 +10,7 @@
       </div>
       <div class="stat-card">
         <span class="stat-value">{{ totalMembers }}</span>
-        <span class="stat-label">総ユ���ザー数</span>
+        <span class="stat-label">総ユーザー数</span>
       </div>
       <div class="stat-card col-span-2 md:col-span-1">
         <span class="stat-value">{{ totalInvitations }}</span>
