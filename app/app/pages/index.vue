@@ -127,11 +127,6 @@ const stats = computed(() => {
 
 const recentSales = computed(() => sales.value.slice(0, 5))
 
-const formatDate = (ts: any) => {
-  const d = ts?.toDate ? ts.toDate() : new Date(ts)
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 const loadGroupData = async () => {
   if (!selectedGroupId.value) return
   try {

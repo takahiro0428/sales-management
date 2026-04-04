@@ -88,7 +88,7 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
-const { getGroupProducts, updateStock } = useProducts()
+const { getGroupProducts, adjustStock: composableAdjustStock } = useProducts()
 const toast = useToast()
 const currentGroupId = useState<string | null>('currentGroupId')
 
@@ -99,7 +99,7 @@ const lowStockOnly = ref(false)
 const filteredProducts = computed(() => {
   let result = [...products.value]
   if (lowStockOnly.value) {
-    result = result.filter((p) => p.stock <= 3)
+    result = result.filter((p) => p.stock <= LOW_STOCK_THRESHOLD)
   }
   result.sort((a, b) => a.stock - b.stock)
   return result
@@ -107,14 +107,13 @@ const filteredProducts = computed(() => {
 
 const stockColor = (stock: number) => {
   if (stock === 0) return 'text-red-500'
-  if (stock <= 3) return 'text-amber-500'
+  if (stock <= LOW_STOCK_THRESHOLD) return 'text-amber-500'
   return 'text-emerald-600'
 }
 
 const adjust = async (product: any, delta: number) => {
-  const newStock = Math.max(0, product.stock + delta)
   try {
-    await updateStock(product.id, newStock)
+    const newStock = await composableAdjustStock(product.id, delta)
     product.stock = newStock
   } catch (e) {
     toast.error('在庫の更新に失敗しました')

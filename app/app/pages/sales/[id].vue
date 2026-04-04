@@ -11,7 +11,7 @@
       <div class="max-w-lg space-y-4">
         <div class="card">
           <div class="flex items-center justify-between mb-4">
-            <span class="text-sm text-slate-400">{{ formatDate(sale.createdAt) }}</span>
+            <span class="text-sm text-slate-400">{{ formatDateFull(sale.createdAt) }}</span>
             <span class="text-xl font-bold text-emerald-600">¥{{ sale.totalAmount.toLocaleString() }}</span>
           </div>
 
@@ -52,11 +52,6 @@ const toast = useToast()
 const saleId = route.params.id as string
 const loading = ref(true)
 const sale = ref<any>(null)
-
-const formatDate = (ts: any) => {
-  const d = ts?.toDate ? ts.toDate() : new Date(ts)
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
-}
 
 onMounted(async () => {
   try {

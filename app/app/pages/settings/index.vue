@@ -60,16 +60,12 @@ const { userProfile, isPlatformAdmin, logout } = useAuth()
 
 const roleName = computed(() => {
   const role = userProfile.value?.role
-  if (role === 'platformAdmin') return 'プラットフォーム管理者'
-  if (role === 'groupAdmin') return 'グループ管理者'
-  return 'メンバー'
+  return (role && ROLE_DISPLAY_NAMES[role]) || ROLE_DISPLAY_NAMES.user
 })
 
 const roleBadgeClass = computed(() => {
   const role = userProfile.value?.role
-  if (role === 'platformAdmin') return 'badge-blue'
-  if (role === 'groupAdmin') return 'badge-green'
-  return 'badge-gray'
+  return (role && ROLE_BADGE_CLASS[role]) || ROLE_BADGE_CLASS.user
 })
 
 const handleLogout = async () => {

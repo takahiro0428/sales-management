@@ -2,7 +2,7 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <h2 class="page-title">商品管理</h2>
-      <NuxtLink to="/products/new" class="btn-primary btn-sm">+ 追加</NuxtLink>
+      <NuxtLink v-if="currentGroupId" to="/products/new" class="btn-primary btn-sm">+ 追加</NuxtLink>
     </div>
 
     <div v-if="!currentGroupId">

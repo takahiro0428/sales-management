@@ -82,9 +82,7 @@ const displayName = computed(() => userProfile.value?.displayName || '')
 const userInitial = computed(() => displayName.value?.charAt(0) || '?')
 const roleName = computed(() => {
   const role = userProfile.value?.role
-  if (role === 'platformAdmin') return '管理者'
-  if (role === 'groupAdmin') return 'グループ管理者'
-  return 'メンバー'
+  return (role && ROLE_DISPLAY_NAMES[role]) || ROLE_DISPLAY_NAMES.user
 })
 
 const navItems = computed(() => [

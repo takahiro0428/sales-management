@@ -42,10 +42,10 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
           channelId: live
-          target: ${{ secrets.FIREBASE_HOSTING_SITE || '' }}
+          target: ${{ secrets.FIREBASE_HOSTING_SITE }}
 
       - name: Deploy Firestore Rules
-        uses: w9jds/firebase-action@master
+        uses: w9jds/firebase-action@v13.22.0
         with:
           args: deploy --only firestore:rules
         env:
@@ -53,7 +53,7 @@ jobs:
           PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
 
       - name: Deploy Firestore Indexes
-        uses: w9jds/firebase-action@master
+        uses: w9jds/firebase-action@v13.22.0
         with:
           args: deploy --only firestore:indexes
         env:
@@ -61,7 +61,7 @@ jobs:
           PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
 
       - name: Deploy Storage Rules
-        uses: w9jds/firebase-action@master
+        uses: w9jds/firebase-action@v13.22.0
         with:
           args: deploy --only storage
         env:

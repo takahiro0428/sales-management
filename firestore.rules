@@ -19,43 +19,89 @@ service cloud.firestore {
       return isAuthenticated() && getUserData().role == 'platformAdmin';
     }
 
+    function isGroupMemberDoc(groupId) {
+      return exists(/databases/$(database)/documents/groupMembers/$(request.auth.uid + '_' + groupId));
+    }
+
+    function isGroupAdminDoc(groupId) {
+      return isGroupMemberDoc(groupId)
+        && get(/databases/$(database)/documents/groupMembers/$(request.auth.uid + '_' + groupId)).data.role == 'groupAdmin';
+    }
+
+    function platformNotInitialized() {
+      return !exists(/databases/$(database)/documents/platformConfig/init);
+    }
+
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated() && (isOwner(userId) || isPlatformAdmin());
-      allow create: if isAuthenticated() && isOwner(userId);
-      allow update: if isAuthenticated() && (isOwner(userId) || isPlatformAdmin());
+      allow get: if isAuthenticated() && (isOwner(userId) || isPlatformAdmin());
+      allow list: if isPlatformAdmin();
+      // Create: own doc only; role must be 'user' unless first user (platformConfig/init absent)
+      allow create: if isAuthenticated()
+        && isOwner(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'createdAt', 'updatedAt'])
+        && (
+          request.resource.data.role == 'user'
+          || (request.resource.data.role == 'platformAdmin' && platformNotInitialized())
+        );
+      // Update: users can update own profile but NOT role; platform admin can update anything
+      allow update: if isAuthenticated()
+        && (
+          (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+          || isPlatformAdmin()
+        );
+    }
 
-      // Allow listing for platform admin and for first-user check (count)
-      allow list: if isAuthenticated();
+    // Platform config - singleton sentinel for first user detection
+    match /platformConfig/{docId} {
+      allow read: if isAuthenticated();
+      // Only allow creating the 'init' document
+      allow create: if isAuthenticated() && docId == 'init';
+      allow update: if isAuthenticated() && isPlatformAdmin();
     }
 
     // Groups collection
     match /groups/{groupId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && isPlatformAdmin();
       allow update, delete: if isAuthenticated() && isPlatformAdmin();
     }
 
-    // Group Members collection
+    // Group Members collection — uses deterministic IDs: {uid}_{groupId}
     match /groupMembers/{memberId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
+      // Create: platform admin or group admin of the target group
+      allow create: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupAdminDoc(request.resource.data.groupId));
+      // Update: platform admin or group admin of the member's group
+      allow update: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupAdminDoc(resource.data.groupId));
       allow delete: if isAuthenticated() && isPlatformAdmin();
     }
 
     // Products collection
     match /products/{productId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      // Create: must be group member or platform admin
+      allow create: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId));
+      // Update: product owner, platform admin, or stock-only updates by any group member
+      allow update: if isAuthenticated()
+        && (isPlatformAdmin()
+          || resource.data.ownerUid == request.auth.uid
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt']));
+      // Delete: product owner or platform admin
+      allow delete: if isAuthenticated()
+        && (isPlatformAdmin() || resource.data.ownerUid == request.auth.uid);
     }
 
     // Sales collection
     match /sales/{saleId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
+      // Create: must be group member or platform admin
+      allow create: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId));
       allow update: if isAuthenticated() && isPlatformAdmin();
       allow delete: if isAuthenticated() && isPlatformAdmin();
     }
@@ -63,8 +109,12 @@ service cloud.firestore {
     // Invitations collection
     match /invitations/{invitationId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
+      // Create: platform admin or group admin of the target group
+      allow create: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupAdminDoc(request.resource.data.groupId));
+      // Update: platform admin or group admin of the invitation's group
+      allow update: if isAuthenticated()
+        && (isPlatformAdmin() || isGroupAdminDoc(resource.data.groupId));
       allow delete: if isAuthenticated() && isPlatformAdmin();
     }
   }

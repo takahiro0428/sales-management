@@ -17,7 +17,7 @@
         <label class="label-text">商品画像</label>
         <div
           class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-blue-300 transition-colors"
-          @click="($refs.fileInput as HTMLInputElement).click()"
+          @click="triggerFileInput"
           @dragover.prevent
           @drop.prevent="handleDrop"
         >
@@ -79,6 +79,10 @@ const imageFile = ref<File | null>(null)
 const imagePreview = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement>()
 
+const triggerFileInput = () => {
+  fileInput.value?.click()
+}
+
 const form = reactive({
   name: '',
   price: 0,
@@ -97,11 +101,13 @@ const handleDrop = (e: DragEvent) => {
 }
 
 const setImage = (file: File) => {
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
   imageFile.value = file
   imagePreview.value = URL.createObjectURL(file)
 }
 
 const clearImage = () => {
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
   imageFile.value = null
   imagePreview.value = null
 }
@@ -135,5 +141,9 @@ onMounted(async () => {
   if (!currentGroupId.value) return
   members.value = (await getGroupMembers(currentGroupId.value)).filter((m) => m.status === 'active')
   form.ownerUid = userProfile.value?.uid || ''
+})
+
+onBeforeUnmount(() => {
+  if (imagePreview.value) URL.revokeObjectURL(imagePreview.value)
 })
 </script>

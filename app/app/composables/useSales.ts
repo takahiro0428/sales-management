@@ -7,7 +7,6 @@ import {
   doc,
   runTransaction,
   serverTimestamp,
-  Timestamp,
 } from 'firebase/firestore'
 
 export interface SaleItem {

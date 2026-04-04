@@ -17,7 +17,7 @@
           </div>
           <div v-if="editing">
             <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFileSelect" />
-            <button type="button" @click="($refs.fileInput as HTMLInputElement).click()" class="btn-secondary btn-sm w-full">画像を変更</button>
+            <button type="button" @click="triggerFileInput" class="btn-secondary btn-sm w-full">画像を変更</button>
           </div>
         </div>
 
@@ -95,7 +95,7 @@
 definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
-const { getProduct, updateProduct, updateStock, deleteProduct } = useProducts()
+const { getProduct, updateProduct, updateStock, adjustStock: composableAdjustStock, deleteProduct } = useProducts()
 const { getGroupMembers } = useGroups()
 const toast = useToast()
 const currentGroupId = useState<string | null>('currentGroupId')
@@ -112,11 +112,16 @@ const newImageFile = ref<File | null>(null)
 const newImagePreview = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement>()
 
+const triggerFileInput = () => {
+  fileInput.value?.click()
+}
+
 const editForm = reactive({ name: '', price: 0, ownerUid: '' })
 
 const handleFileSelect = (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (file) {
+    if (newImagePreview.value) URL.revokeObjectURL(newImagePreview.value)
     newImageFile.value = file
     newImagePreview.value = URL.createObjectURL(file)
   }
@@ -132,6 +137,7 @@ const startEdit = () => {
 const cancelEdit = () => {
   editing.value = false
   newImageFile.value = null
+  if (newImagePreview.value) URL.revokeObjectURL(newImagePreview.value)
   newImagePreview.value = null
 }
 
@@ -156,9 +162,8 @@ const saveEdit = async () => {
 }
 
 const adjustStock = async (delta: number) => {
-  const newStock = Math.max(0, product.value.stock + delta)
   try {
-    await updateStock(productId, newStock)
+    const newStock = await composableAdjustStock(productId, delta)
     product.value.stock = newStock
   } catch (e) {
     toast.error('在庫の更新に失敗しました')
@@ -200,5 +205,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+})
+
+onBeforeUnmount(() => {
+  if (newImagePreview.value) URL.revokeObjectURL(newImagePreview.value)
 })
 </script>

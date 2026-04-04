@@ -1,9 +1,12 @@
 import {
   collection,
+  doc,
   query,
   where,
   getDocs,
   orderBy,
+  runTransaction,
+  serverTimestamp,
 } from 'firebase/firestore'
 import {
   ref as storageRef,
@@ -25,6 +28,9 @@ export interface Product {
   updatedAt: any
 }
 
+const THUMBNAIL_MAX_SIZE = 300
+const THUMBNAIL_QUALITY = 0.7
+
 export const useProducts = () => {
   const { $firestore, $firebaseStorage } = useNuxtApp()
   const { addDocument, updateDocument, deleteDocument, getDocument } = useFirestore()
@@ -36,7 +42,7 @@ export const useProducts = () => {
     const imageUrl = await getDownloadURL(originalRef)
 
     // Create and upload thumbnail (compressed via canvas)
-    const thumbnailBlob = await createThumbnail(file, 300)
+    const thumbnailBlob = await createThumbnail(file, THUMBNAIL_MAX_SIZE)
     const thumbRef = storageRef($firebaseStorage, `groups/${groupId}/products/${productId}/thumb_${file.name}`)
     await uploadBytes(thumbRef, thumbnailBlob)
     const thumbnailUrl = await getDownloadURL(thumbRef)
@@ -49,8 +55,12 @@ export const useProducts = () => {
       const img = new Image()
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')!
+      const objectUrl = URL.createObjectURL(file)
 
       img.onload = () => {
+        // Revoke object URL to prevent memory leak
+        URL.revokeObjectURL(objectUrl)
+
         let { width, height } = img
         if (width > height) {
           if (width > maxSize) {
@@ -72,11 +82,14 @@ export const useProducts = () => {
             else reject(new Error('Failed to create thumbnail'))
           },
           'image/jpeg',
-          0.7,
+          THUMBNAIL_QUALITY,
         )
       }
-      img.onerror = reject
-      img.src = URL.createObjectURL(file)
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        reject(new Error('Failed to load image'))
+      }
+      img.src = objectUrl
     })
   }
 
@@ -139,8 +152,34 @@ export const useProducts = () => {
     await updateDocument('products', productId, updateData)
   }
 
+  // Use transaction to prevent race conditions on stock updates
   const updateStock = async (productId: string, newStock: number) => {
-    await updateDocument('products', productId, { stock: newStock })
+    const productRef = doc($firestore, 'products', productId)
+    await runTransaction($firestore, async (transaction) => {
+      const snap = await transaction.get(productRef)
+      if (!snap.exists()) throw new Error('商品が見つかりません')
+      transaction.update(productRef, {
+        stock: newStock,
+        updatedAt: serverTimestamp(),
+      })
+    })
+  }
+
+  // Atomic stock adjustment using transaction (read-then-write)
+  const adjustStock = async (productId: string, delta: number) => {
+    const productRef = doc($firestore, 'products', productId)
+    let resultStock = 0
+    await runTransaction($firestore, async (transaction) => {
+      const snap = await transaction.get(productRef)
+      if (!snap.exists()) throw new Error('商品が見つかりません')
+      const currentStock = snap.data().stock || 0
+      resultStock = Math.max(0, currentStock + delta)
+      transaction.update(productRef, {
+        stock: resultStock,
+        updatedAt: serverTimestamp(),
+      })
+    })
+    return resultStock
   }
 
   const getProduct = async (productId: string): Promise<Product | null> => {
@@ -153,6 +192,7 @@ export const useProducts = () => {
     getUserProducts,
     updateProduct,
     updateStock,
+    adjustStock,
     getProduct,
     deleteProduct: (id: string) => deleteDocument('products', id),
   }

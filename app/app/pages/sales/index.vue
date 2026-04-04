@@ -2,7 +2,7 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <h2 class="page-title">売上管理</h2>
-      <NuxtLink to="/sales/new" class="btn-primary btn-sm">+ 売上記録</NuxtLink>
+      <NuxtLink v-if="currentGroupId" to="/sales/new" class="btn-primary btn-sm">+ 売上記録</NuxtLink>
     </div>
 
     <div v-if="!currentGroupId">
@@ -194,11 +194,6 @@ const getOwnerItems = (uid: string) => {
     }
   }
   return Object.values(items)
-}
-
-const formatDate = (ts: any) => {
-  const d = ts?.toDate ? ts.toDate() : new Date(ts)
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 const loadData = async () => {
