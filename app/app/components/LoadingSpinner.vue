@@ -1,6 +1,6 @@
 <template>
   <div class="flex items-center justify-center" :class="containerClass">
-    <div class="animate-spin rounded-full border-2 border-slate-200 border-t-blue-500" :class="sizeClass" />
+    <div class="animate-spin rounded-full border-2 border-slate-200 border-t-primary-500" :class="sizeClass" />
   </div>
 </template>
 

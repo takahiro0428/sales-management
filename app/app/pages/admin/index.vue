@@ -10,7 +10,7 @@
       </div>
       <div class="stat-card">
         <span class="stat-value">{{ totalMembers }}</span>
-        <span class="stat-label">総ユーザー数</span>
+        <span class="stat-label">総ユ���ザー数</span>
       </div>
       <div class="stat-card col-span-2 md:col-span-1">
         <span class="stat-value">{{ totalInvitations }}</span>
@@ -25,14 +25,14 @@
       <div v-else-if="groups.length === 0" class="text-center py-4 text-sm text-slate-400">グループなし</div>
       <div v-else class="space-y-3">
         <NuxtLink v-for="g in groups" :key="g.id" :to="`/groups/${g.id}`"
-          class="block p-3 rounded-xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-colors"
+          class="block p-3 rounded-xl border border-slate-100 hover:border-primary-200 hover:bg-primary-50/30 transition-colors"
         >
           <div class="flex items-center justify-between">
             <div>
               <h4 class="font-medium text-slate-800">{{ g.name }}</h4>
               <p class="text-xs text-slate-400">{{ g.description || '説明なし' }}</p>
             </div>
-            <span class="text-slate-300">→</span>
+            <ChevronRight :size="16" class="text-slate-300" />
           </div>
         </NuxtLink>
       </div>
@@ -41,6 +41,8 @@
 </template>
 
 <script setup lang="ts">
+import { ChevronRight } from 'lucide-vue-next'
+
 definePageMeta({ middleware: ['auth', 'admin'] })
 
 const { getMyGroups, getAllActiveMembers, getAllPendingInvitations } = useGroups()

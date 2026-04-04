@@ -61,9 +61,10 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isPlatformAdmin();
     }
 
-    // Groups collection
+    // Groups collection (public get for shop catalog header)
     match /groups/{groupId} {
-      allow read: if isAuthenticated();
+      allow get: if true;
+      allow list: if isAuthenticated();
       allow create: if isAuthenticated() && isPlatformAdmin();
       allow update, delete: if isAuthenticated() && isPlatformAdmin();
     }
@@ -80,9 +81,9 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isPlatformAdmin();
     }
 
-    // Products collection
+    // Products collection (public read for shop catalog)
     match /products/{productId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       // Create: must be group member or platform admin
       allow create: if isAuthenticated()
         && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId));

@@ -19,7 +19,7 @@
         </form>
         <p class="text-center text-sm text-slate-500 mt-4">
           アカウントをお持ちでない方は
-          <NuxtLink to="/register" class="text-blue-500 hover:text-blue-600 font-medium">新規登録</NuxtLink>
+          <NuxtLink to="/register" class="text-primary-500 hover:text-primary-600 font-medium">新規登録</NuxtLink>
         </p>
       </div>
     </NuxtLayout>

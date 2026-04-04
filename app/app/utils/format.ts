@@ -38,7 +38,7 @@ export const ROLE_DISPLAY_NAMES: Record<string, string> = {
  * Map role to badge CSS class
  */
 export const ROLE_BADGE_CLASS: Record<string, string> = {
-  platformAdmin: 'badge-blue',
+  platformAdmin: 'badge-primary',
   groupAdmin: 'badge-green',
   user: 'badge-gray',
 }

@@ -27,7 +27,7 @@
         </form>
         <p class="text-center text-sm text-slate-500 mt-4">
           すでにアカウントをお持ちの方は
-          <NuxtLink to="/login" class="text-blue-500 hover:text-blue-600 font-medium">ログイン</NuxtLink>
+          <NuxtLink to="/login" class="text-primary-500 hover:text-primary-600 font-medium">ログイン</NuxtLink>
         </p>
       </div>
     </NuxtLayout>
