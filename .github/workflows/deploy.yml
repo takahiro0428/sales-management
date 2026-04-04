@@ -75,16 +75,20 @@ jobs:
           GMAIL_SENDER_NAME: ${{ secrets.GMAIL_SENDER_NAME }}
           PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
+          # Enable Secret Manager API (requires serviceusage.services.enable permission)
+          gcloud services enable secretmanager.googleapis.com --quiet --project="$PROJECT_ID" || {
+            echo "::warning::Could not enable Secret Manager API. Enable it manually: https://console.cloud.google.com/apis/library/secretmanager.googleapis.com?project=$PROJECT_ID"
+            exit 1
+          }
           set_secret() {
             local name=$1 value=$2
             if [ -z "$value" ]; then
               echo "::warning::Secret $name is not set in Repository Secrets. Skipping."
               return 0
             fi
-            # Create secret if it doesn't exist, then add version
-            gcloud secrets describe "$name" --project="$PROJECT_ID" >/dev/null 2>&1 \
-              || gcloud secrets create "$name" --replication-policy="automatic" --project="$PROJECT_ID"
-            echo -n "$value" | gcloud secrets versions add "$name" --data-file=- --project="$PROJECT_ID"
+            gcloud secrets describe "$name" --project="$PROJECT_ID" --quiet >/dev/null 2>&1 \
+              || gcloud secrets create "$name" --replication-policy="automatic" --project="$PROJECT_ID" --quiet
+            echo -n "$value" | gcloud secrets versions add "$name" --data-file=- --project="$PROJECT_ID" --quiet
           }
           set_secret "GMAIL_USER" "$GMAIL_USER"
           set_secret "GMAIL_APP_PASSWORD" "$GMAIL_APP_PASSWORD"
