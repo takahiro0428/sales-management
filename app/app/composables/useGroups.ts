@@ -242,6 +242,33 @@ export const useGroups = () => {
     return docSnap.exists() && docSnap.data()?.role === 'groupAdmin'
   }
 
+  const updateGroup = async (groupId: string, data: { name?: string; description?: string }) => {
+    await updateDocument('groups', groupId, data)
+  }
+
+  const deleteGroup = async (groupId: string, callerUid: string) => {
+    // Clean up groupMembers for this group (delete caller's own doc last to preserve permissions)
+    const members = await getGroupMembers(groupId)
+    const callerDocId = memberDocId(callerUid, groupId)
+    const otherMembers = members.filter((m) => m.id !== callerDocId)
+    const callerMember = members.find((m) => m.id === callerDocId)
+
+    for (const m of otherMembers) {
+      try { await deleteDocument('groupMembers', m.id) } catch { /* non-blocking */ }
+    }
+    // Clean up invitations for this group
+    const invitations = await getGroupInvitations(groupId)
+    for (const inv of invitations) {
+      try { await deleteDocument('invitations', inv.id) } catch { /* non-blocking */ }
+    }
+    // Delete the group document before caller's own membership
+    await deleteDocument('groups', groupId)
+    // Delete caller's own membership last
+    if (callerMember) {
+      try { await deleteDocument('groupMembers', callerMember.id) } catch { /* non-blocking */ }
+    }
+  }
+
   return {
     createGroup,
     addMemberToGroup,
@@ -258,5 +285,7 @@ export const useGroups = () => {
     cancelInvitation,
     removeMember,
     isGroupAdmin,
+    updateGroup,
+    deleteGroup,
   }
 }

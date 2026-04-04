@@ -127,7 +127,7 @@
         <!-- Stock Adjustment -->
         <div class="card">
           <h3 class="section-title mb-3">在庫調整</h3>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center justify-center gap-3 mb-3">
             <button @click="adjustStock(-1)" class="btn-secondary btn-sm" :disabled="product.stock <= 0">
               <Minus :size="16" />
             </button>
@@ -135,10 +135,10 @@
             <button @click="adjustStock(1)" class="btn-secondary btn-sm">
               <Plus :size="16" />
             </button>
-            <div class="flex-1">
-              <input v-model.number="stockInput" type="number" min="0" class="input-field" placeholder="直接入力" />
-            </div>
-            <button @click="setStock" class="btn-primary btn-sm">設定</button>
+          </div>
+          <div class="flex items-center gap-3">
+            <input v-model.number="stockInput" type="number" min="0" class="input-field flex-1" placeholder="数量を直接入力" />
+            <button @click="setStock" class="btn-primary btn-sm shrink-0">設定</button>
           </div>
         </div>
       </div>
@@ -190,7 +190,7 @@ const editForm = reactive({ name: '', description: '', price: 0, ownerUid: '', c
 
 const handleFileSelect = (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0]
-  if (file) {
+  if (file && file.type.startsWith('image/')) {
     if (newImagePreview.value) URL.revokeObjectURL(newImagePreview.value)
     newImageFile.value = file
     newImagePreview.value = URL.createObjectURL(file)

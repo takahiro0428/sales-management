@@ -4,13 +4,21 @@
       <button @click="navigateTo('/groups')" class="text-slate-400 hover:text-slate-600">
         <ArrowLeft :size="20" />
       </button>
-      <div class="flex-1">
+      <div class="flex-1 min-w-0">
         <h2 class="page-title">{{ group?.name || 'グループ' }}</h2>
         <p v-if="group?.description" class="text-sm text-slate-500">{{ group.description }}</p>
       </div>
-      <button @click="setAsCurrent" class="btn-secondary btn-sm" v-if="currentGroupId !== groupId">
-        選択する
-      </button>
+      <div class="flex items-center gap-2 shrink-0">
+        <button v-if="canManage" @click="startEditGroup" class="text-slate-400 hover:text-primary-500">
+          <Pencil :size="18" />
+        </button>
+        <button v-if="canManage" @click="showDeleteGroupConfirm = true" class="text-slate-400 hover:text-red-500">
+          <Trash2 :size="18" />
+        </button>
+        <button @click="setAsCurrent" class="btn-secondary btn-sm" v-if="currentGroupId !== groupId">
+          選択する
+        </button>
+      </div>
     </div>
 
     <LoadingSpinner v-if="loading" full-page />
@@ -189,17 +197,52 @@
       danger-mode
       @confirm="confirmRemoveMember"
     />
+
+    <ConfirmDialog
+      v-model="showDeleteGroupConfirm"
+      title="グループを削除"
+      message="このグループを削除してもよろしいですか？グループ情報は復元できません。関連データ（商品・売上等）は残ります。"
+      confirm-text="削除する"
+      danger-mode
+      @confirm="handleDeleteGroup"
+    />
+
+    <!-- Edit Group Modal -->
+    <Teleport to="body">
+      <div v-if="showEditGroupModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40" @click="showEditGroupModal = false" />
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+          <h3 class="text-lg font-semibold text-slate-800 mb-4">グループを編集</h3>
+          <form @submit.prevent="handleUpdateGroup" class="space-y-4">
+            <div>
+              <label class="label-text">グループ名 <span class="text-red-400">*</span></label>
+              <input v-model="editGroupForm.name" type="text" class="input-field" required />
+            </div>
+            <div>
+              <label class="label-text">説明</label>
+              <input v-model="editGroupForm.description" type="text" class="input-field" />
+            </div>
+            <div class="flex gap-3">
+              <button type="button" @click="showEditGroupModal = false" class="btn-secondary flex-1">キャンセル</button>
+              <button type="submit" class="btn-primary flex-1" :disabled="updatingGroup">
+                {{ updatingGroup ? '保存中...' : '保存' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, UserPlus, Mail, Link2 } from 'lucide-vue-next'
+import { ArrowLeft, UserPlus, Mail, Link2, Pencil, Trash2 } from 'lucide-vue-next'
 
 definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const { userProfile, isPlatformAdmin } = useAuth()
-const { getGroup, getGroupMembers, getGroupInvitations, inviteMember, resendInvitation, cancelInvitation, suspendMember, reactivateMember, removeMember, isGroupAdmin } = useGroups()
+const { getGroup, getGroupMembers, getGroupInvitations, inviteMember, resendInvitation, cancelInvitation, suspendMember, reactivateMember, removeMember, isGroupAdmin, updateGroup, deleteGroup } = useGroups()
 const toast = useToast()
 const { currentGroupId, setCurrentGroup } = useCurrentGroup()
 
@@ -219,6 +262,10 @@ const cancelInvitationTarget = ref<any>(null)
 const showRemoveMemberConfirm = ref(false)
 const removeMemberTarget = ref<any>(null)
 const lastInvitedLink = ref('')
+const showEditGroupModal = ref(false)
+const showDeleteGroupConfirm = ref(false)
+const updatingGroup = ref(false)
+const editGroupForm = reactive({ name: '', description: '' })
 
 const inviteForm = reactive({ email: '', role: 'member' as 'member' | 'groupAdmin' })
 
@@ -232,6 +279,51 @@ const shopUrl = computed(() => {
 const setAsCurrent = () => {
   setCurrentGroup(groupId, group.value?.name || null)
   toast.success('グループを選択しました')
+}
+
+const startEditGroup = () => {
+  editGroupForm.name = group.value?.name || ''
+  editGroupForm.description = group.value?.description || ''
+  showEditGroupModal.value = true
+}
+
+const handleUpdateGroup = async () => {
+  const trimmedName = editGroupForm.name.trim()
+  if (!trimmedName) {
+    toast.error('グループ名を入力してください')
+    return
+  }
+  updatingGroup.value = true
+  try {
+    await updateGroup(groupId, {
+      name: trimmedName,
+      description: editGroupForm.description.trim(),
+    })
+    group.value.name = trimmedName
+    group.value.description = editGroupForm.description.trim()
+    if (currentGroupId.value === groupId) {
+      setCurrentGroup(groupId, trimmedName)
+    }
+    showEditGroupModal.value = false
+    toast.success('グループを更新しました')
+  } catch (e) {
+    toast.error('グループの更新に失敗しました')
+  } finally {
+    updatingGroup.value = false
+  }
+}
+
+const handleDeleteGroup = async () => {
+  try {
+    await deleteGroup(groupId, userProfile.value!.uid)
+    if (currentGroupId.value === groupId) {
+      setCurrentGroup(null, null)
+    }
+    toast.success('グループを削除しました')
+    navigateTo('/groups')
+  } catch (e) {
+    toast.error('グループの削除に失敗しました')
+  }
 }
 
 const invitationStatusClass = (status: string) => ({

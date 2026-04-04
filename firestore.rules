@@ -66,7 +66,11 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isAuthenticated();
       allow create: if isAuthenticated() && isPlatformAdmin();
-      allow update, delete: if isAuthenticated() && isPlatformAdmin();
+      allow update: if isAuthenticated()
+        && (isPlatformAdmin()
+          || (isGroupAdminDoc(groupId)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'description', 'updatedAt'])));
+      allow delete: if isAuthenticated() && (isPlatformAdmin() || isGroupAdminDoc(groupId));
     }
 
     // Group Members collection — uses deterministic IDs: {uid}_{groupId}
