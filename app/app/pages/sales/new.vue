@@ -97,7 +97,7 @@ const { userProfile } = useAuth()
 const { getGroupProducts } = useProducts()
 const { createSale } = useSales()
 const toast = useToast()
-const currentGroupId = useState<string | null>('currentGroupId')
+const { currentGroupId } = useCurrentGroup()
 
 const loading = ref(true)
 const submitting = ref(false)

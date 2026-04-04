@@ -104,7 +104,7 @@ definePageMeta({ middleware: 'auth' })
 
 const { getGroupProducts, adjustStock: composableAdjustStock } = useProducts()
 const toast = useToast()
-const currentGroupId = useState<string | null>('currentGroupId')
+const { currentGroupId } = useCurrentGroup()
 
 const loading = ref(true)
 const products = ref<any[]>([])

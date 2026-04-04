@@ -108,8 +108,7 @@ const toast = useToast()
 
 const loading = ref(true)
 const groups = ref<any[]>([])
-const selectedGroupId = useState<string | null>('currentGroupId', () => null)
-const currentGroupName = useState<string | null>('currentGroupName', () => null)
+const { currentGroupId: selectedGroupId, setCurrentGroup } = useCurrentGroup()
 const products = ref<any[]>([])
 const sales = ref<any[]>([])
 
@@ -151,7 +150,7 @@ const loadGroupData = async () => {
 
 const onGroupChange = () => {
   const g = groups.value.find((g) => g.id === selectedGroupId.value)
-  currentGroupName.value = g?.name || null
+  setCurrentGroup(selectedGroupId.value, g?.name || null)
   loadGroupData()
 }
 
@@ -162,7 +161,8 @@ onMounted(async () => {
       if (!selectedGroupId.value || !groups.value.find((g) => g.id === selectedGroupId.value)) {
         selectedGroupId.value = groups.value[0].id
       }
-      currentGroupName.value = groups.value.find((g) => g.id === selectedGroupId.value)?.name || null
+      const g = groups.value.find((g) => g.id === selectedGroupId.value)
+      setCurrentGroup(selectedGroupId.value, g?.name || null)
       await loadGroupData()
     }
   } catch (e) {

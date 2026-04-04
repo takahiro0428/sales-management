@@ -1,6 +1,9 @@
+import { setGlobalOptions } from "firebase-functions/v2/options";
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
+
+setGlobalOptions({ region: "asia-northeast1" });
 import * as nodemailer from "nodemailer";
 
 admin.initializeApp();

@@ -10,16 +10,16 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-5 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2;
+    @apply bg-primary-500 hover:bg-primary-600 text-white font-medium py-2.5 px-5 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 whitespace-nowrap;
   }
   .btn-secondary {
-    @apply bg-white hover:bg-slate-50 text-slate-700 font-medium py-2.5 px-5 rounded-xl border border-slate-200 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2;
+    @apply bg-white hover:bg-slate-50 text-slate-700 font-medium py-2.5 px-5 rounded-xl border border-slate-200 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 whitespace-nowrap;
   }
   .btn-danger {
-    @apply bg-red-500 hover:bg-red-600 text-white font-medium py-2.5 px-5 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2;
+    @apply bg-red-500 hover:bg-red-600 text-white font-medium py-2.5 px-5 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 whitespace-nowrap;
   }
   .btn-success {
-    @apply bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2.5 px-5 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2;
+    @apply bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2.5 px-5 rounded-xl transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 whitespace-nowrap;
   }
   .btn-sm {
     @apply py-1.5 px-3 text-sm rounded-lg;
@@ -40,7 +40,7 @@
     @apply text-lg font-semibold text-slate-700;
   }
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap;
   }
   .badge-primary {
     @apply badge bg-primary-100 text-primary-700;

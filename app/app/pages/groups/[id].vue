@@ -20,7 +20,7 @@
       <div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-6">
         <button
           @click="activeTab = 'members'"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           :class="activeTab === 'members' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           メンバー ({{ members.length }})
@@ -28,14 +28,14 @@
         <button
           v-if="canManage"
           @click="activeTab = 'invitations'"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           :class="activeTab === 'invitations' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           招待 ({{ invitations.length }})
         </button>
         <button
           @click="activeTab = 'qrcode'"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           :class="activeTab === 'qrcode' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           QRコード
@@ -104,7 +104,7 @@
       <!-- QR Code Tab -->
       <div v-if="activeTab === 'qrcode'">
         <div class="card">
-          <h3 class="section-title mb-4">商品ページQRコー��</h3>
+          <h3 class="section-title mb-4">商品ページQRコード</h3>
           <p class="text-sm text-slate-500 mb-4">このQRコードをお客様に共有すると、商品カタログページにアクセスできます。</p>
           <QrCodeGenerator
             :url="shopUrl"
@@ -128,7 +128,7 @@
                 <label class="label-text">ロール</label>
                 <select v-model="inviteForm.role" class="input-field">
                   <option value="member">メンバー</option>
-                  <option value="groupAdmin">グ���ープ管理者</option>
+                  <option value="groupAdmin">グループ管理者</option>
                 </select>
               </div>
               <div class="flex gap-3">
@@ -163,8 +163,7 @@ const route = useRoute()
 const { userProfile, isPlatformAdmin } = useAuth()
 const { getGroup, getGroupMembers, getGroupInvitations, inviteMember, resendInvitation, suspendMember, reactivateMember, isGroupAdmin } = useGroups()
 const toast = useToast()
-const currentGroupId = useState<string | null>('currentGroupId')
-const currentGroupName = useState<string | null>('currentGroupName')
+const { currentGroupId, setCurrentGroup } = useCurrentGroup()
 
 const groupId = route.params.id as string
 const loading = ref(true)
@@ -188,8 +187,7 @@ const shopUrl = computed(() => {
 })
 
 const setAsCurrent = () => {
-  currentGroupId.value = groupId
-  currentGroupName.value = group.value?.name || null
+  setCurrentGroup(groupId, group.value?.name || null)
   toast.success('グループを選択しました')
 }
 
@@ -236,7 +234,7 @@ const handleResend = async (invId: string) => {
     toast.success('再送信を設定しました')
     invitations.value = await getGroupInvitations(groupId)
   } catch (e) {
-    toast.error('再送信に失敗しまし��')
+    toast.error('再送信に失敗しました')
   }
 }
 
@@ -260,9 +258,9 @@ const handleReactivate = async (member: any) => {
   try {
     await reactivateMember(member.id)
     member.status = 'active'
-    toast.success('メンバー��復帰しました')
+    toast.success('メンバーを復帰しました')
   } catch (e) {
-    toast.error('復帰���失敗しました')
+    toast.error('復帰に失敗しました')
   }
 }
 

@@ -78,8 +78,9 @@
 import { Home, Package, Coins, ClipboardList, Users, Settings, Shield, LogOut } from 'lucide-vue-next'
 
 const { userProfile, logout } = useAuth()
-const currentGroupId = useState<string | null>('currentGroupId', () => null)
-const currentGroupName = useState<string | null>('currentGroupName', () => null)
+const { currentGroupName, restoreFromStorage } = useCurrentGroup()
+
+restoreFromStorage()
 
 const displayName = computed(() => userProfile.value?.displayName || '')
 const userInitial = computed(() => displayName.value?.charAt(0) || '?')

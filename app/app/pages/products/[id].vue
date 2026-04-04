@@ -166,7 +166,7 @@ const { getProduct, updateProduct, updateStock, adjustStock: composableAdjustSto
 const { getGroupMembers } = useGroups()
 const { suggestCategoryAndTags } = useAiSuggestion()
 const toast = useToast()
-const currentGroupId = useState<string | null>('currentGroupId')
+const { currentGroupId } = useCurrentGroup()
 
 const productId = route.params.id as string
 const loading = ref(true)
