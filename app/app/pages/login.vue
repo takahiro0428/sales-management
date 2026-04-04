@@ -43,7 +43,9 @@ const handleLogin = async () => {
   } catch (e: any) {
     const msg = e.code === 'auth/invalid-credential' ? 'メールアドレスまたはパスワードが正しくありません'
       : e.code === 'auth/too-many-requests' ? 'ログイン試行回数が多すぎます。しばらくしてからお試しください'
-      : 'ログインに失敗しました'
+      : e.code === 'auth/configuration-not-found' || e.message?.includes('CONFIGURATION_NOT_FOUND')
+        ? 'システムの設定に問題があります。管理者にお問い合わせください'
+        : 'ログインに失敗しました'
     toast.error(msg)
   } finally {
     loading.value = false
