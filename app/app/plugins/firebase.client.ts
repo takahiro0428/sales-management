@@ -2,6 +2,7 @@ import { initializeApp, getApps } from 'firebase/app'
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
+import { getVertexAI } from 'firebase/vertexai'
 
 export default defineNuxtPlugin(async () => {
   const config = useRuntimeConfig()
@@ -29,6 +30,7 @@ export default defineNuxtPlugin(async () => {
   await setPersistence(auth, browserLocalPersistence)
   const firestore = getFirestore(app)
   const storage = getStorage(app)
+  const vertexAI = getVertexAI(app, { location: config.public.vertexAiLocation || 'asia-northeast1' })
 
   return {
     provide: {
@@ -36,6 +38,7 @@ export default defineNuxtPlugin(async () => {
       firebaseAuth: auth,
       firestore,
       firebaseStorage: storage,
+      vertexAI,
     },
   }
 })

@@ -18,6 +18,8 @@ export default defineNuxtConfig({
       firebaseStorageBucket: '',
       firebaseMessagingSenderId: '',
       firebaseAppId: '',
+      vertexAiLocation: 'asia-northeast1',
+      vertexAiModel: 'gemini-2.5-flash',
     },
   },
 
@@ -28,7 +30,7 @@ export default defineNuxtConfig({
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'description', content: 'フリーマーケット向け商品・在庫・売上管理アプリ' },
-        { name: 'theme-color', content: '#3b82f6' },
+        { name: 'theme-color', content: '#F9B2D7' },
       ],
       link: [
         { rel: 'icon', type: 'image/png', href: '/favicon.png' },
@@ -43,7 +45,7 @@ export default defineNuxtConfig({
       name: 'フリマ売上管理',
       short_name: 'フリマ管理',
       description: 'フリーマーケット向け商品・在庫・売上管理アプリ',
-      theme_color: '#3b82f6',
+      theme_color: '#F9B2D7',
       background_color: '#f8fafc',
       display: 'standalone',
       orientation: 'portrait',

@@ -2,12 +2,15 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <h2 class="page-title">グループ</h2>
-      <button v-if="isPlatformAdmin" @click="showCreateModal = true" class="btn-primary btn-sm">+ 作成</button>
+      <button v-if="isPlatformAdmin" @click="showCreateModal = true" class="btn-primary btn-sm">
+        <PlusCircle :size="16" />
+        作成
+      </button>
     </div>
 
     <LoadingSpinner v-if="loading" full-page />
 
-    <EmptyState v-else-if="groups.length === 0" icon="👥" title="グループがありません" description="プラットフォーム管理者がグループを作成するか、招待メールからグループに参加できます" />
+    <EmptyState v-else-if="groups.length === 0" :icon="Users" title="グループがありません" description="プラットフォーム管理者がグループを作成するか、招待メールからグループに参加できます" />
 
     <div v-else class="space-y-3">
       <div v-for="g in groups" :key="g.id"
@@ -20,8 +23,8 @@
             <p class="text-sm text-slate-500 mt-0.5">{{ g.description || '説明なし' }}</p>
           </div>
           <div class="flex items-center gap-2">
-            <span v-if="currentGroupId === g.id" class="badge-blue">選択中</span>
-            <span class="text-slate-300">→</span>
+            <span v-if="currentGroupId === g.id" class="badge-primary">選択中</span>
+            <ChevronRight :size="16" class="text-slate-300" />
           </div>
         </div>
       </div>
@@ -56,6 +59,8 @@
 </template>
 
 <script setup lang="ts">
+import { Users, PlusCircle, ChevronRight } from 'lucide-vue-next'
+
 definePageMeta({ middleware: 'auth' })
 
 const { userProfile, isPlatformAdmin } = useAuth()

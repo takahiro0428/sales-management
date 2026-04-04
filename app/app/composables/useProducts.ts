@@ -18,15 +18,31 @@ export interface Product {
   id: string
   groupId: string
   name: string
+  description: string
   price: number
   ownerUid: string
   ownerName: string
   imageUrl: string | null
   thumbnailUrl: string | null
   stock: number
+  category: string
+  tags: string[]
   createdAt: any
   updatedAt: any
 }
+
+export const PRODUCT_CATEGORIES = [
+  'アクセサリー',
+  '衣類',
+  'バッグ・財布',
+  '雑貨・インテリア',
+  '食品',
+  'おもちゃ・ホビー',
+  '本・文具',
+  'ハンドメイド',
+  'ビューティー',
+  'その他',
+] as const
 
 const THUMBNAIL_MAX_SIZE = 300
 const THUMBNAIL_QUALITY = 0.7
@@ -101,16 +117,22 @@ export const useProducts = () => {
     ownerName: string,
     initialStock: number,
     imageFile?: File | null,
+    description?: string,
+    category?: string,
+    tags?: string[],
   ) => {
     const productId = await addDocument('products', {
       groupId,
       name,
+      description: description || '',
       price,
       ownerUid,
       ownerName,
       imageUrl: null,
       thumbnailUrl: null,
       stock: initialStock,
+      category: category || 'その他',
+      tags: tags || [],
     })
 
     if (imageFile) {
@@ -128,7 +150,13 @@ export const useProducts = () => {
       orderBy('createdAt', 'desc'),
     )
     const snap = await getDocs(q)
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
+    return snap.docs.map((d) => ({
+      id: d.id,
+      description: '',
+      category: 'その他',
+      tags: [],
+      ...d.data(),
+    }) as Product)
   }
 
   const getUserProducts = async (groupId: string, uid: string): Promise<Product[]> => {
@@ -139,7 +167,13 @@ export const useProducts = () => {
       orderBy('createdAt', 'desc'),
     )
     const snap = await getDocs(q)
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Product)
+    return snap.docs.map((d) => ({
+      id: d.id,
+      description: '',
+      category: 'その他',
+      tags: [],
+      ...d.data(),
+    }) as Product)
   }
 
   const updateProduct = async (productId: string, data: Partial<Product>, imageFile?: File | null) => {
@@ -183,7 +217,14 @@ export const useProducts = () => {
   }
 
   const getProduct = async (productId: string): Promise<Product | null> => {
-    return getDocument<Product>('products', productId)
+    const raw = await getDocument<Product>('products', productId)
+    if (!raw) return null
+    return {
+      description: '',
+      category: 'その他',
+      tags: [],
+      ...raw,
+    }
   }
 
   return {

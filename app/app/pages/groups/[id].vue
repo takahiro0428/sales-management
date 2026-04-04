@@ -1,7 +1,9 @@
 <template>
   <div>
     <div class="flex items-center gap-3 mb-6">
-      <button @click="navigateTo('/groups')" class="text-slate-400 hover:text-slate-600">← 戻る</button>
+      <button @click="navigateTo('/groups')" class="text-slate-400 hover:text-slate-600">
+        <ArrowLeft :size="20" />
+      </button>
       <div class="flex-1">
         <h2 class="page-title">{{ group?.name || 'グループ' }}</h2>
         <p v-if="group?.description" class="text-sm text-slate-500">{{ group.description }}</p>
@@ -19,7 +21,7 @@
         <button
           @click="activeTab = 'members'"
           class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
-          :class="activeTab === 'members' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'"
+          :class="activeTab === 'members' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           メンバー ({{ members.length }})
         </button>
@@ -27,28 +29,38 @@
           v-if="canManage"
           @click="activeTab = 'invitations'"
           class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
-          :class="activeTab === 'invitations' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'"
+          :class="activeTab === 'invitations' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           招待 ({{ invitations.length }})
+        </button>
+        <button
+          @click="activeTab = 'qrcode'"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+          :class="activeTab === 'qrcode' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
+        >
+          QRコード
         </button>
       </div>
 
       <!-- Members Tab -->
       <div v-if="activeTab === 'members'">
         <div v-if="canManage" class="mb-4">
-          <button @click="showInviteModal = true" class="btn-primary btn-sm w-full sm:w-auto">メンバーを招待</button>
+          <button @click="showInviteModal = true" class="btn-primary btn-sm w-full sm:w-auto">
+            <UserPlus :size="16" />
+            メンバーを招待
+          </button>
         </div>
 
         <div class="space-y-3">
           <div v-for="m in members" :key="m.id" class="card">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-medium text-sm shrink-0">
+              <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-medium text-sm shrink-0">
                 {{ m.displayName?.charAt(0) || '?' }}
               </div>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
                   <span class="font-medium text-slate-800 text-sm truncate">{{ m.displayName }}</span>
-                  <span v-if="m.role === 'groupAdmin'" class="badge-blue">管理者</span>
+                  <span v-if="m.role === 'groupAdmin'" class="badge-primary">管理者</span>
                   <span v-if="m.status === 'suspended'" class="badge-red">停止中</span>
                 </div>
                 <p class="text-xs text-slate-400 truncate">{{ m.email }}</p>
@@ -64,7 +76,7 @@
 
       <!-- Invitations Tab -->
       <div v-if="activeTab === 'invitations' && canManage">
-        <EmptyState v-if="invitations.length === 0" icon="📨" title="招待なし" description="メンバーを招待するとここに表示されます" />
+        <EmptyState v-if="invitations.length === 0" :icon="Mail" title="招待なし" description="メンバーを招待するとここに表示されます" />
 
         <div v-else class="space-y-3">
           <div v-for="inv in invitations" :key="inv.id" class="card">
@@ -89,6 +101,18 @@
         </div>
       </div>
 
+      <!-- QR Code Tab -->
+      <div v-if="activeTab === 'qrcode'">
+        <div class="card">
+          <h3 class="section-title mb-4">商品ページQRコー��</h3>
+          <p class="text-sm text-slate-500 mb-4">このQRコードをお客様に共有すると、商品カタログページにアクセスできます。</p>
+          <QrCodeGenerator
+            :url="shopUrl"
+            :group-name="group?.name"
+          />
+        </div>
+      </div>
+
       <!-- Invite Modal -->
       <Teleport to="body">
         <div v-if="showInviteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -104,7 +128,7 @@
                 <label class="label-text">ロール</label>
                 <select v-model="inviteForm.role" class="input-field">
                   <option value="member">メンバー</option>
-                  <option value="groupAdmin">グループ管理者</option>
+                  <option value="groupAdmin">グ���ープ管理者</option>
                 </select>
               </div>
               <div class="flex gap-3">
@@ -131,6 +155,8 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowLeft, UserPlus, Mail } from 'lucide-vue-next'
+
 definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
@@ -153,6 +179,13 @@ const showSuspendConfirm = ref(false)
 const suspendTarget = ref<any>(null)
 
 const inviteForm = reactive({ email: '', role: 'member' as 'member' | 'groupAdmin' })
+
+const shopUrl = computed(() => {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/shop/${groupId}`
+  }
+  return `/shop/${groupId}`
+})
 
 const setAsCurrent = () => {
   currentGroupId.value = groupId
@@ -203,7 +236,7 @@ const handleResend = async (invId: string) => {
     toast.success('再送信を設定しました')
     invitations.value = await getGroupInvitations(groupId)
   } catch (e) {
-    toast.error('再送信に失敗しました')
+    toast.error('再送信に失敗しまし��')
   }
 }
 
@@ -227,9 +260,9 @@ const handleReactivate = async (member: any) => {
   try {
     await reactivateMember(member.id)
     member.status = 'active'
-    toast.success('メンバーを復帰しました')
+    toast.success('メンバー��復帰しました')
   } catch (e) {
-    toast.error('復帰に失敗しました')
+    toast.error('復帰���失敗しました')
   }
 }
 

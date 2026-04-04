@@ -3,7 +3,7 @@
     <h2 class="page-title mb-6">在庫管理</h2>
 
     <div v-if="!currentGroupId">
-      <EmptyState icon="👥" title="グループを選択してください" description="ホーム画面でグループを選択してください">
+      <EmptyState :icon="Users" title="グループを選択してください" description="ホーム画面でグループを選択してください">
         <template #action><NuxtLink to="/" class="btn-primary btn-sm">ホームへ</NuxtLink></template>
       </EmptyState>
     </div>
@@ -12,7 +12,7 @@
       <!-- Filter -->
       <div class="flex items-center gap-3 mb-4">
         <label class="flex items-center gap-2 cursor-pointer">
-          <input v-model="lowStockOnly" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-200" />
+          <input v-model="lowStockOnly" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-primary-500 focus:ring-primary-200" />
           <span class="text-sm text-slate-600">在庫少のみ表示</span>
         </label>
         <span class="text-sm text-slate-400">{{ filteredProducts.length }}件</span>
@@ -20,7 +20,7 @@
 
       <LoadingSpinner v-if="loading" full-page />
 
-      <EmptyState v-else-if="filteredProducts.length === 0" icon="📋" title="商品がありません" description="商品を登録すると在庫管理ができます" />
+      <EmptyState v-else-if="filteredProducts.length === 0" :icon="ClipboardList" title="商品がありません" description="商品を登録すると在庫管理ができます" />
 
       <!-- Mobile Card View -->
       <div v-else class="md:hidden space-y-3">
@@ -28,16 +28,22 @@
           <div class="flex items-center gap-3">
             <div class="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0">
               <img v-if="p.thumbnailUrl" :src="p.thumbnailUrl" class="w-full h-full object-cover" />
-              <div v-else class="w-full h-full flex items-center justify-center text-xl">📦</div>
+              <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
+                <Package :size="20" :stroke-width="1.5" />
+              </div>
             </div>
             <div class="flex-1 min-w-0">
               <h3 class="font-medium text-slate-800 truncate text-sm">{{ p.name }}</h3>
               <p class="text-xs text-slate-400">{{ p.ownerName }}</p>
             </div>
             <div class="flex items-center gap-2 shrink-0">
-              <button @click="adjust(p, -1)" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm" :disabled="p.stock <= 0">−</button>
+              <button @click="adjust(p, -1)" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center" :disabled="p.stock <= 0">
+                <Minus :size="14" />
+              </button>
               <span class="w-10 text-center font-bold text-lg" :class="stockColor(p.stock)">{{ p.stock }}</span>
-              <button @click="adjust(p, 1)" class="w-8 h-8 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 flex items-center justify-center text-sm">＋</button>
+              <button @click="adjust(p, 1)" class="w-8 h-8 rounded-full bg-primary-100 hover:bg-primary-200 text-primary-600 flex items-center justify-center">
+                <Plus :size="14" />
+              </button>
             </div>
           </div>
         </div>
@@ -61,7 +67,9 @@
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg bg-slate-100 overflow-hidden shrink-0">
                     <img v-if="p.thumbnailUrl" :src="p.thumbnailUrl" class="w-full h-full object-cover" />
-                    <div v-else class="w-full h-full flex items-center justify-center text-sm">📦</div>
+                    <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
+                      <Package :size="14" :stroke-width="1.5" />
+                    </div>
                   </div>
                   <span class="font-medium text-slate-800 text-sm">{{ p.name }}</span>
                 </div>
@@ -73,8 +81,12 @@
               </td>
               <td class="py-3 px-4 text-center">
                 <div class="flex items-center justify-center gap-2">
-                  <button @click="adjust(p, -1)" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-sm" :disabled="p.stock <= 0">−</button>
-                  <button @click="adjust(p, 1)" class="w-7 h-7 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 text-sm">＋</button>
+                  <button @click="adjust(p, -1)" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center" :disabled="p.stock <= 0">
+                    <Minus :size="14" />
+                  </button>
+                  <button @click="adjust(p, 1)" class="w-7 h-7 rounded-full bg-primary-100 hover:bg-primary-200 text-primary-600 flex items-center justify-center">
+                    <Plus :size="14" />
+                  </button>
                 </div>
               </td>
             </tr>
@@ -86,6 +98,8 @@
 </template>
 
 <script setup lang="ts">
+import { Users, ClipboardList, Package, Minus, Plus } from 'lucide-vue-next'
+
 definePageMeta({ middleware: 'auth' })
 
 const { getGroupProducts, adjustStock: composableAdjustStock } = useProducts()

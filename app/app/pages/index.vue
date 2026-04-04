@@ -15,7 +15,7 @@
 
     <div v-if="groups.length === 0 && !loading" class="mt-8">
       <EmptyState
-        icon="👥"
+        :icon="Users"
         title="グループがありません"
         description="グループを作成するか、招待を受けてグループに参加しましょう"
       >
@@ -49,15 +49,21 @@
       <!-- Quick Actions -->
       <div class="grid grid-cols-3 gap-3 mb-6">
         <NuxtLink to="/sales/new" class="card text-center hover:shadow-md transition-shadow py-4">
-          <span class="text-2xl block mb-1">💰</span>
+          <div class="flex justify-center mb-1 text-primary-400">
+            <Coins :size="28" :stroke-width="1.5" />
+          </div>
           <span class="text-xs font-medium text-slate-600">売上を記録</span>
         </NuxtLink>
         <NuxtLink to="/products/new" class="card text-center hover:shadow-md transition-shadow py-4">
-          <span class="text-2xl block mb-1">📦</span>
+          <div class="flex justify-center mb-1 text-sub1-400">
+            <Package :size="28" :stroke-width="1.5" />
+          </div>
           <span class="text-xs font-medium text-slate-600">商品を登録</span>
         </NuxtLink>
         <NuxtLink to="/inventory" class="card text-center hover:shadow-md transition-shadow py-4">
-          <span class="text-2xl block mb-1">📋</span>
+          <div class="flex justify-center mb-1 text-sub2-400">
+            <ClipboardList :size="28" :stroke-width="1.5" />
+          </div>
           <span class="text-xs font-medium text-slate-600">在庫を確認</span>
         </NuxtLink>
       </div>
@@ -66,7 +72,7 @@
       <div class="card">
         <div class="flex items-center justify-between mb-4">
           <h3 class="section-title">最近の売上</h3>
-          <NuxtLink to="/sales" class="text-sm text-blue-500 hover:text-blue-600">すべて見る →</NuxtLink>
+          <NuxtLink to="/sales" class="text-sm text-primary-500 hover:text-primary-600">すべて見る →</NuxtLink>
         </div>
         <div v-if="recentSales.length === 0" class="text-center py-6 text-sm text-slate-400">
           売上データはまだありません
@@ -90,6 +96,8 @@
 </template>
 
 <script setup lang="ts">
+import { Users, Coins, Package, ClipboardList } from 'lucide-vue-next'
+
 definePageMeta({ middleware: 'auth' })
 
 const { userProfile, isPlatformAdmin } = useAuth()

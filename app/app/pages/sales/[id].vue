@@ -1,11 +1,19 @@
 <template>
   <div>
     <div class="flex items-center gap-3 mb-6">
-      <button @click="$router.back()" class="text-slate-400 hover:text-slate-600">← 戻る</button>
+      <button @click="$router.back()" class="text-slate-400 hover:text-slate-600">
+        <ArrowLeft :size="20" />
+      </button>
       <h2 class="page-title flex-1">売上詳細</h2>
       <template v-if="sale && canEdit">
-        <button v-if="!editing" @click="startEdit" class="btn-secondary btn-sm">編集</button>
-        <button v-if="!editing" @click="showDeleteConfirm = true" class="btn-danger btn-sm">削除</button>
+        <button v-if="!editing" @click="startEdit" class="btn-secondary btn-sm">
+          <Pencil :size="14" />
+          編集
+        </button>
+        <button v-if="!editing" @click="showDeleteConfirm = true" class="btn-danger btn-sm">
+          <Trash2 :size="14" />
+          削除
+        </button>
       </template>
     </div>
 
@@ -29,7 +37,7 @@
                 <div class="flex items-center gap-1 shrink-0">
                   <button @click="editChangeQty(idx, -1)" class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">−</button>
                   <span class="w-6 text-center text-sm">{{ item.quantity }}</span>
-                  <button @click="editChangeQty(idx, 1)" class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs">＋</button>
+                  <button @click="editChangeQty(idx, 1)" class="w-6 h-6 rounded-full bg-primary-400 text-white flex items-center justify-center text-xs">+</button>
                 </div>
                 <div class="flex items-center gap-1 shrink-0">
                   <span class="text-slate-400 text-xs">¥</span>
@@ -37,7 +45,7 @@
                     type="number"
                     v-model.number="item.unitPrice"
                     @input="recalcSubtotal(idx)"
-                    class="w-20 px-2 py-1 rounded-lg border border-slate-200 text-right text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none"
+                    class="w-20 px-2 py-1 rounded-lg border border-slate-200 text-right text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-100 outline-none"
                     min="0"
                   />
                 </div>
@@ -89,6 +97,7 @@
 </template>
 
 <script setup lang="ts">
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-vue-next'
 import type { SaleItem } from '~/composables/useSales'
 
 definePageMeta({ middleware: 'auth' })

@@ -1,12 +1,14 @@
 <template>
   <div>
     <div class="flex items-center gap-3 mb-6">
-      <button @click="$router.back()" class="text-slate-400 hover:text-slate-600">← 戻る</button>
+      <button @click="$router.back()" class="text-slate-400 hover:text-slate-600">
+        <ArrowLeft :size="20" />
+      </button>
       <h2 class="page-title">売上を記録</h2>
     </div>
 
     <div v-if="!currentGroupId">
-      <EmptyState icon="👥" title="グループを選択してください" description="ホーム画面でグループを選択してください" />
+      <EmptyState :icon="Users" title="グループを選択してください" description="ホーム画面でグループを選択してください" />
     </div>
 
     <LoadingSpinner v-if="loading" full-page />
@@ -19,12 +21,14 @@
           <div class="space-y-3">
             <div v-for="product in products" :key="product.id"
               class="flex items-center gap-3 p-3 rounded-xl border transition-colors cursor-pointer"
-              :class="isSelected(product.id) ? 'border-blue-300 bg-blue-50' : 'border-slate-100 hover:border-slate-200'"
+              :class="isSelected(product.id) ? 'border-primary-300 bg-primary-50' : 'border-slate-100 hover:border-slate-200'"
               @click="toggleProduct(product)"
             >
               <div class="w-10 h-10 rounded-lg bg-slate-100 overflow-hidden shrink-0">
                 <img v-if="product.thumbnailUrl" :src="product.thumbnailUrl" class="w-full h-full object-cover" />
-                <div v-else class="w-full h-full flex items-center justify-center">📦</div>
+                <div v-else class="w-full h-full flex items-center justify-center text-slate-300">
+                  <Package :size="18" :stroke-width="1.5" />
+                </div>
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-slate-800 truncate">{{ product.name }}</p>
@@ -34,7 +38,7 @@
                 <div class="flex items-center gap-2">
                   <button @click="changeQty(product.id, -1)" class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-sm">−</button>
                   <span class="w-8 text-center font-medium">{{ getQty(product.id) }}</span>
-                  <button @click="changeQty(product.id, 1)" class="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm disabled:opacity-50" :disabled="getQty(product.id) >= product.stock">＋</button>
+                  <button @click="changeQty(product.id, 1)" class="w-7 h-7 rounded-full bg-primary-400 text-white flex items-center justify-center text-sm disabled:opacity-50" :disabled="getQty(product.id) >= product.stock">+</button>
                 </div>
               </div>
             </div>
@@ -53,7 +57,7 @@
                   type="number"
                   :value="item.unitPrice"
                   @input="changeUnitPrice(item.productId, Number(($event.target as HTMLInputElement).value))"
-                  class="w-20 px-2 py-1 rounded-lg border border-slate-200 text-right text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none"
+                  class="w-20 px-2 py-1 rounded-lg border border-slate-200 text-right text-sm focus:border-primary-400 focus:ring-1 focus:ring-primary-100 outline-none"
                   min="0"
                 />
               </div>
@@ -78,13 +82,15 @@
       </div>
     </template>
 
-    <EmptyState v-else-if="!loading" icon="📦" title="商品がありません" description="先に商品を登録してください">
+    <EmptyState v-else-if="!loading" :icon="Package" title="商品がありません" description="先に商品を登録してください">
       <template #action><NuxtLink to="/products/new" class="btn-primary btn-sm">商品を登録</NuxtLink></template>
     </EmptyState>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ArrowLeft, Users, Package } from 'lucide-vue-next'
+
 definePageMeta({ middleware: 'auth' })
 
 const { userProfile } = useAuth()
