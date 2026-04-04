@@ -86,11 +86,12 @@ service cloud.firestore {
       // Create: must be group member or platform admin
       allow create: if isAuthenticated()
         && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId));
-      // Update: product owner, platform admin, or stock-only updates by any group member
+      // Update: product owner, platform admin, or stock-only updates by group member
       allow update: if isAuthenticated()
         && (isPlatformAdmin()
           || resource.data.ownerUid == request.auth.uid
-          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt']));
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt'])
+              && isGroupMemberDoc(resource.data.groupId)));
       // Delete: product owner or platform admin
       allow delete: if isAuthenticated()
         && (isPlatformAdmin() || resource.data.ownerUid == request.auth.uid);
@@ -102,8 +103,14 @@ service cloud.firestore {
       // Create: must be group member or platform admin
       allow create: if isAuthenticated()
         && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId));
-      allow update: if isAuthenticated() && isPlatformAdmin();
-      allow delete: if isAuthenticated() && isPlatformAdmin();
+      allow update: if isAuthenticated()
+        && (isPlatformAdmin()
+          || resource.data.createdBy == request.auth.uid
+          || isGroupAdminDoc(resource.data.groupId));
+      allow delete: if isAuthenticated()
+        && (isPlatformAdmin()
+          || resource.data.createdBy == request.auth.uid
+          || isGroupAdminDoc(resource.data.groupId));
     }
 
     // Invitations collection

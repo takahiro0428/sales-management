@@ -88,6 +88,88 @@ export const useSales = () => {
     return saleRef.id
   }
 
+  const updateSale = async (
+    saleId: string,
+    oldItems: SaleItem[],
+    newItems: SaleItem[],
+    note: string,
+  ) => {
+    const saleRef = doc($firestore, 'sales', saleId)
+    const newTotalAmount = newItems.reduce((sum, item) => sum + item.subtotal, 0)
+
+    // Compute net stock delta per product in a single pass
+    const stockDelta = new Map<string, { delta: number; name: string }>()
+    for (const item of oldItems) {
+      const entry = stockDelta.get(item.productId) || { delta: 0, name: item.productName }
+      entry.delta += item.quantity // restore old
+      stockDelta.set(item.productId, entry)
+    }
+    for (const item of newItems) {
+      const entry = stockDelta.get(item.productId) || { delta: 0, name: item.productName }
+      entry.delta -= item.quantity // deduct new
+      stockDelta.set(item.productId, entry)
+    }
+
+    await runTransaction($firestore, async (transaction) => {
+      // Verify sale still exists
+      const saleSnap = await transaction.get(saleRef)
+      if (!saleSnap.exists()) {
+        throw new Error('売上データが見つかりません（削除された可能性があります）')
+      }
+
+      // Apply net stock changes per product in one update each
+      for (const [productId, { delta, name }] of stockDelta) {
+        const productRef = doc($firestore, 'products', productId)
+        const productSnap = await transaction.get(productRef)
+        if (!productSnap.exists()) {
+          throw new Error(`商品が見つかりません: ${name}`)
+        }
+        const currentStock = productSnap.data().stock || 0
+        const newStock = currentStock + delta
+        if (newStock < 0) {
+          throw new Error(`在庫不足: ${name} (残り${currentStock}個)`)
+        }
+        transaction.update(productRef, {
+          stock: newStock,
+          updatedAt: serverTimestamp(),
+        })
+      }
+
+      transaction.update(saleRef, {
+        items: newItems,
+        totalAmount: newTotalAmount,
+        note,
+        updatedAt: serverTimestamp(),
+      })
+    })
+  }
+
+  const deleteSale = async (saleId: string, items: SaleItem[]) => {
+    const saleRef = doc($firestore, 'sales', saleId)
+
+    await runTransaction($firestore, async (transaction) => {
+      // Verify sale still exists to lock the document
+      const saleSnap = await transaction.get(saleRef)
+      if (!saleSnap.exists()) {
+        throw new Error('売上データが見つかりません（既に削除された可能性があります）')
+      }
+
+      // Restore stock for all items
+      for (const item of items) {
+        const productRef = doc($firestore, 'products', item.productId)
+        const productSnap = await transaction.get(productRef)
+        if (productSnap.exists()) {
+          const currentStock = productSnap.data().stock || 0
+          transaction.update(productRef, {
+            stock: currentStock + item.quantity,
+            updatedAt: serverTimestamp(),
+          })
+        }
+      }
+      transaction.delete(saleRef)
+    })
+  }
+
   const getGroupSales = async (groupId: string): Promise<Sale[]> => {
     const q = query(
       collection($firestore, 'sales'),
@@ -156,6 +238,8 @@ export const useSales = () => {
 
   return {
     createSale,
+    updateSale,
+    deleteSale,
     getGroupSales,
     getSale,
     getSalesSummary,

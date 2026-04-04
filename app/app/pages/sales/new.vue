@@ -34,7 +34,7 @@
                 <div class="flex items-center gap-2">
                   <button @click="changeQty(product.id, -1)" class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-sm">−</button>
                   <span class="w-8 text-center font-medium">{{ getQty(product.id) }}</span>
-                  <button @click="changeQty(product.id, 1)" class="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm" :disabled="getQty(product.id) >= product.stock">＋</button>
+                  <button @click="changeQty(product.id, 1)" class="w-7 h-7 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm disabled:opacity-50" :disabled="getQty(product.id) >= product.stock">＋</button>
                 </div>
               </div>
             </div>
@@ -45,9 +45,19 @@
         <div v-if="selectedItems.length > 0" class="card">
           <h3 class="section-title mb-3">販売内容</h3>
           <div class="space-y-2 mb-4">
-            <div v-for="item in selectedItems" :key="item.productId" class="flex items-center justify-between text-sm">
-              <span class="text-slate-600">{{ item.productName }} × {{ item.quantity }}</span>
-              <span class="font-medium">¥{{ item.subtotal.toLocaleString() }}</span>
+            <div v-for="item in selectedItems" :key="item.productId" class="flex items-center justify-between text-sm gap-2">
+              <span class="text-slate-600 flex-1 min-w-0 truncate">{{ item.productName }} × {{ item.quantity }}</span>
+              <div class="flex items-center gap-1 shrink-0">
+                <span class="text-slate-400 text-xs">¥</span>
+                <input
+                  type="number"
+                  :value="item.unitPrice"
+                  @input="changeUnitPrice(item.productId, Number(($event.target as HTMLInputElement).value))"
+                  class="w-20 px-2 py-1 rounded-lg border border-slate-200 text-right text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-100 outline-none"
+                  min="0"
+                />
+              </div>
+              <span class="font-medium shrink-0 w-20 text-right">¥{{ item.subtotal.toLocaleString() }}</span>
             </div>
             <div class="border-t border-slate-100 pt-2 flex items-center justify-between">
               <span class="font-semibold text-slate-800">合計</span>
@@ -86,39 +96,47 @@ const currentGroupId = useState<string | null>('currentGroupId')
 const loading = ref(true)
 const submitting = ref(false)
 const products = ref<any[]>([])
-const cart = ref<Map<string, number>>(new Map())
+const cart = ref<Map<string, { quantity: number; unitPrice: number }>>(new Map())
 const note = ref('')
 
 const isSelected = (id: string) => cart.value.has(id)
-const getQty = (id: string) => cart.value.get(id) || 0
+const getQty = (id: string) => cart.value.get(id)?.quantity || 0
 
 const toggleProduct = (product: any) => {
   if (cart.value.has(product.id)) {
     cart.value.delete(product.id)
   } else if (product.stock > 0) {
-    cart.value.set(product.id, 1)
+    cart.value.set(product.id, { quantity: 1, unitPrice: product.price })
   } else {
     toast.warning('在庫がありません')
   }
-  // Trigger reactivity
   cart.value = new Map(cart.value)
 }
 
 const changeQty = (id: string, delta: number) => {
-  const current = cart.value.get(id) || 0
+  const entry = cart.value.get(id)
+  if (!entry) return
   const product = products.value.find((p) => p.id === id)
-  const newQty = current + delta
+  const newQty = entry.quantity + delta
   if (newQty <= 0) {
     cart.value.delete(id)
   } else if (product && newQty <= product.stock) {
-    cart.value.set(id, newQty)
+    cart.value.set(id, { ...entry, quantity: newQty })
   }
+  cart.value = new Map(cart.value)
+}
+
+const changeUnitPrice = (id: string, price: number) => {
+  const entry = cart.value.get(id)
+  if (!entry) return
+  const safePrice = isNaN(price) ? 0 : Math.max(0, price)
+  cart.value.set(id, { ...entry, unitPrice: safePrice })
   cart.value = new Map(cart.value)
 }
 
 const selectedItems = computed(() => {
   const items: any[] = []
-  for (const [productId, quantity] of cart.value) {
+  for (const [productId, entry] of cart.value) {
     const product = products.value.find((p) => p.id === productId)
     if (product) {
       items.push({
@@ -126,9 +144,9 @@ const selectedItems = computed(() => {
         productName: product.name,
         ownerUid: product.ownerUid,
         ownerName: product.ownerName,
-        quantity,
-        unitPrice: product.price,
-        subtotal: product.price * quantity,
+        quantity: entry.quantity,
+        unitPrice: entry.unitPrice,
+        subtotal: entry.unitPrice * entry.quantity,
       })
     }
   }

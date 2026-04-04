@@ -43,8 +43,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: ['auth', 'admin'] })
 
-const { getMyGroups } = useGroups()
-const { isPlatformAdmin, userProfile } = useAuth()
+const { getMyGroups, getAllActiveMembers, getAllPendingInvitations } = useGroups()
+const { userProfile } = useAuth()
 const toast = useToast()
 
 const loading = ref(true)
@@ -54,10 +54,17 @@ const totalInvitations = ref(0)
 
 onMounted(async () => {
   try {
-    groups.value = await getMyGroups(userProfile.value!.uid, true)
-    // Count from groups - simple estimate for now
-    totalMembers.value = groups.value.length * 2 // Will be replaced with actual count
-    totalInvitations.value = 0
+    const [groupsData, activeMembers, pendingInvitations] = await Promise.all([
+      getMyGroups(userProfile.value!.uid, true),
+      getAllActiveMembers(),
+      getAllPendingInvitations(),
+    ])
+    groups.value = groupsData
+
+    // Count unique active users by uid
+    const uniqueUids = new Set(activeMembers.map((m) => m.uid))
+    totalMembers.value = uniqueUids.size
+    totalInvitations.value = pendingInvitations.length
   } catch (e) {
     toast.error('データの読み込みに失敗しました')
   } finally {

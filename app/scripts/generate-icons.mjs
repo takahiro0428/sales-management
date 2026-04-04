@@ -15,3 +15,10 @@ for (const size of sizes) {
     .toFile(resolve(__dirname, `../public/icons/icon-${size}.png`))
   console.log(`Generated icon-${size}.png (${size}x${size})`)
 }
+
+// Also generate a 32x32 favicon PNG
+await sharp(svg)
+  .resize(32, 32)
+  .png()
+  .toFile(resolve(__dirname, '../public/favicon.png'))
+console.log('Generated favicon.png (32x32)')

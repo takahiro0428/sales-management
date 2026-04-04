@@ -210,6 +210,24 @@ export const useGroups = () => {
     await updateDocument('groupMembers', memberId, { status: 'active' })
   }
 
+  const getAllActiveMembers = async (): Promise<GroupMember[]> => {
+    const q = query(
+      collection($firestore, 'groupMembers'),
+      where('status', '==', 'active'),
+    )
+    const snap = await getDocs(q)
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as GroupMember)
+  }
+
+  const getAllPendingInvitations = async (): Promise<Invitation[]> => {
+    const q = query(
+      collection($firestore, 'invitations'),
+      where('status', '==', 'pending'),
+    )
+    const snap = await getDocs(q)
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Invitation)
+  }
+
   const isGroupAdmin = async (groupId: string, uid: string): Promise<boolean> => {
     const docId = memberDocId(uid, groupId)
     const docSnap = await getDoc(doc($firestore, 'groupMembers', docId))
@@ -223,6 +241,8 @@ export const useGroups = () => {
     getGroup,
     getGroupMembers,
     getGroupInvitations,
+    getAllActiveMembers,
+    getAllPendingInvitations,
     inviteMember,
     resendInvitation,
     suspendMember,
