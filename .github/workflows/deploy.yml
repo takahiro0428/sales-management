@@ -29,7 +29,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: |
+            app/package-lock.json
+            functions/package-lock.json
 
       - name: Install dependencies
         working-directory: app
@@ -38,6 +40,14 @@ jobs:
       - name: Build Nuxt app
         working-directory: app
         run: npm run generate
+
+      - name: Install Cloud Functions dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Build Cloud Functions
+        working-directory: functions
+        run: npm run build
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -55,6 +65,26 @@ jobs:
 
       - name: Install firebase-tools
         run: npm install -g firebase-tools@13.22.0
+
+      - name: Deploy Cloud Functions
+        id: functions-deploy
+        continue-on-error: true
+        run: firebase deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Warn if Cloud Functions deploy failed
+        if: ${{ steps.functions-deploy.outcome == 'failure' }}
+        run: |
+          echo "::warning::Cloud Functions deployment failed. Ensure the service account has 'roles/cloudfunctions.admin' and secrets (GMAIL_USER, GMAIL_APP_PASSWORD) are configured via 'firebase functions:secrets:set'."
+          cat >> $GITHUB_STEP_SUMMARY <<'EOF'
+          ### Cloud Functions deploy failed (non-blocking)
+
+          The service account may lack `roles/cloudfunctions.admin`.
+          Also ensure Gmail secrets are set:
+          ```bash
+          firebase functions:secrets:set GMAIL_USER --project PROJECT_ID
+          firebase functions:secrets:set GMAIL_APP_PASSWORD --project PROJECT_ID
+          ```
+          EOF
 
       # Firestore rules are security-critical; failure will fail the workflow (see final step).
       # continue-on-error allows Storage deploy to run before failing.
