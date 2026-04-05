@@ -107,7 +107,10 @@
               <p class="text-sm font-medium text-slate-700">
                 {{ sale.items.map((i: any) => i.productName).join(', ') }}
               </p>
-              <p class="text-xs text-slate-400">{{ formatDate(sale.createdAt) }} · {{ sale.createdByName }}</p>
+              <p class="text-xs text-slate-400">
+                {{ formatDate(sale.createdAt) }} · {{ sale.createdByName }}
+                <span v-if="sale.isBundle" class="ml-1 px-1 py-0.5 text-[10px] font-semibold bg-primary-100 text-primary-600 rounded">セット</span>
+              </p>
             </div>
             <span class="text-sm font-semibold text-emerald-600">¥{{ sale.totalAmount.toLocaleString() }}</span>
           </div>
