@@ -24,6 +24,7 @@ export interface Sale {
   groupId: string
   items: SaleItem[]
   totalAmount: number
+  isBundle: boolean
   note: string
   createdBy: string
   createdByName: string
@@ -38,6 +39,36 @@ export interface SaleSummary {
   byProduct: Record<string, { name: string; quantity: number; amount: number }>
 }
 
+/**
+ * Distribute a bundle total amount proportionally across sale items
+ * based on each item's (unitPrice × quantity) weight.
+ */
+export const distributeBundleAmount = (items: SaleItem[], total: number): SaleItem[] => {
+  const rawSum = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+  return items.map((item, idx, arr) => {
+    let subtotal: number
+    if (rawSum === 0) {
+      // Equal distribution when all original prices are 0
+      const share = Math.round(total / arr.length)
+      subtotal = idx === arr.length - 1
+        ? total - share * (arr.length - 1)
+        : share
+    } else if (idx === arr.length - 1) {
+      // Last item absorbs rounding difference
+      subtotal = total - arr.slice(0, -1).reduce((s, it) => {
+        return s + Math.round((it.unitPrice * it.quantity / rawSum) * total)
+      }, 0)
+    } else {
+      subtotal = Math.round((item.unitPrice * item.quantity / rawSum) * total)
+    }
+    return {
+      ...item,
+      unitPrice: Math.round(subtotal / (item.quantity || 1)),
+      subtotal,
+    }
+  })
+}
+
 export const useSales = () => {
   const { $firestore } = useNuxtApp()
   const { getDocument } = useFirestore()
@@ -48,6 +79,7 @@ export const useSales = () => {
     note: string,
     createdBy: string,
     createdByName: string,
+    isBundle: boolean = false,
   ) => {
     const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0)
 
@@ -77,6 +109,7 @@ export const useSales = () => {
         groupId,
         items,
         totalAmount,
+        isBundle,
         note,
         createdBy,
         createdByName,
@@ -93,6 +126,7 @@ export const useSales = () => {
     oldItems: SaleItem[],
     newItems: SaleItem[],
     note: string,
+    isBundle: boolean = false,
   ) => {
     const saleRef = doc($firestore, 'sales', saleId)
     const newTotalAmount = newItems.reduce((sum, item) => sum + item.subtotal, 0)
@@ -138,6 +172,7 @@ export const useSales = () => {
       transaction.update(saleRef, {
         items: newItems,
         totalAmount: newTotalAmount,
+        isBundle,
         note,
         updatedAt: serverTimestamp(),
       })
@@ -177,11 +212,13 @@ export const useSales = () => {
       orderBy('createdAt', 'desc'),
     )
     const snap = await getDocs(q)
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Sale)
+    return snap.docs.map((d) => ({ id: d.id, isBundle: false, ...d.data() }) as Sale)
   }
 
   const getSale = async (saleId: string): Promise<Sale | null> => {
-    return getDocument<Sale>('sales', saleId)
+    const raw = await getDocument<Sale>('sales', saleId)
+    if (!raw) return null
+    return { isBundle: false, ...raw }
   }
 
   const getSalesSummary = (sales: Sale[]): SaleSummary => {

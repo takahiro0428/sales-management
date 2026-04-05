@@ -15,6 +15,29 @@
 
     <template v-else-if="products.length > 0">
       <div class="max-w-lg space-y-5">
+        <!-- Sale Mode Toggle -->
+        <div class="card">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="section-title">セット売り</h3>
+              <p class="text-xs text-slate-400 mt-0.5">複数商品をまとめて販売金額を設定</p>
+            </div>
+            <button
+              @click="bundleMode = !bundleMode"
+              role="switch"
+              :aria-checked="bundleMode"
+              aria-label="セット売りモード"
+              class="relative w-11 h-6 rounded-full transition-colors"
+              :class="bundleMode ? 'bg-primary-400' : 'bg-slate-200'"
+            >
+              <span
+                class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
+                :class="bundleMode ? 'translate-x-5' : ''"
+              />
+            </button>
+          </div>
+        </div>
+
         <!-- Product Selection -->
         <div class="card">
           <h3 class="section-title mb-3">商品を選択</h3>
@@ -45,8 +68,8 @@
           </div>
         </div>
 
-        <!-- Selected Items Summary -->
-        <div v-if="selectedItems.length > 0" class="card">
+        <!-- Selected Items Summary (normal mode) -->
+        <div v-if="selectedItems.length > 0 && !bundleMode" class="card">
           <h3 class="section-title mb-3">販売内容</h3>
           <div class="space-y-2 mb-4">
             <div v-for="item in selectedItems" :key="item.productId" class="flex items-center justify-between text-sm gap-2">
@@ -79,6 +102,45 @@
             {{ submitting ? '記録中...' : '売上を記録する' }}
           </button>
         </div>
+
+        <!-- Selected Items Summary (bundle mode) -->
+        <div v-if="selectedItems.length > 0 && bundleMode" class="card">
+          <h3 class="section-title mb-3">
+            <span class="inline-flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 text-xs font-semibold bg-primary-100 text-primary-600 rounded">セット</span>
+              販売内容
+            </span>
+          </h3>
+          <div class="space-y-2 mb-4">
+            <div v-for="item in selectedItems" :key="item.productId" class="flex items-center justify-between text-sm gap-2">
+              <span class="text-slate-600 flex-1 min-w-0 truncate">{{ item.productName }}</span>
+              <span class="text-slate-400 shrink-0">× {{ item.quantity }}</span>
+            </div>
+            <div class="border-t border-slate-100 pt-3">
+              <label class="label-text mb-1">セット売上金額</label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                <input
+                  v-model.number="bundleTotalAmount"
+                  type="number"
+                  min="0"
+                  class="input-field pl-8 text-lg font-bold text-emerald-600"
+                  placeholder="売上金額を入力"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="label-text">メモ（任意）</label>
+            <input v-model="note" type="text" class="input-field" placeholder="例：3点セット割引" />
+          </div>
+
+          <button @click="handleSubmit" class="btn-success w-full" :disabled="submitting || !bundleTotalAmount || bundleTotalAmount <= 0">
+            <LoadingSpinner v-if="submitting" size="sm" />
+            {{ submitting ? '記録中...' : '売上を記録する' }}
+          </button>
+        </div>
       </div>
     </template>
 
@@ -90,6 +152,7 @@
 
 <script setup lang="ts">
 import { ArrowLeft, Users, Package } from 'lucide-vue-next'
+import { distributeBundleAmount } from '~/composables/useSales'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -104,6 +167,8 @@ const submitting = ref(false)
 const products = ref<any[]>([])
 const cart = ref<Map<string, { quantity: number; unitPrice: number }>>(new Map())
 const note = ref('')
+const bundleMode = ref(false)
+const bundleTotalAmount = ref<number>(0)
 
 const isSelected = (id: string) => cart.value.has(id)
 const getQty = (id: string) => cart.value.get(id)?.quantity || 0
@@ -165,12 +230,27 @@ const handleSubmit = async () => {
   if (selectedItems.value.length === 0) return
   submitting.value = true
   try {
+    let itemsToSubmit = selectedItems.value
+    let isBundle = false
+
+    if (bundleMode.value) {
+      const total = bundleTotalAmount.value
+      if (!total || total <= 0) {
+        toast.error('売上金額を入力してください')
+        submitting.value = false
+        return
+      }
+      itemsToSubmit = distributeBundleAmount(selectedItems.value, total)
+      isBundle = true
+    }
+
     await createSale(
       currentGroupId.value!,
-      selectedItems.value,
+      itemsToSubmit,
       note.value,
       userProfile.value!.uid,
       userProfile.value!.displayName,
+      isBundle,
     )
     toast.success('売上を記録しました！')
     navigateTo('/sales')

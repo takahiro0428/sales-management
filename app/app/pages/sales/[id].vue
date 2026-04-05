@@ -23,7 +23,10 @@
       <div class="max-w-lg space-y-4">
         <div class="card">
           <div class="flex items-center justify-between mb-4">
-            <span class="text-sm text-slate-400">{{ formatDateFull(sale.createdAt) }}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-slate-400">{{ formatDateFull(sale.createdAt) }}</span>
+              <span v-if="sale.isBundle" class="px-1.5 py-0.5 text-xs font-semibold bg-primary-100 text-primary-600 rounded">セット</span>
+            </div>
             <span class="text-xl font-bold text-emerald-600">¥{{ displayTotalAmount.toLocaleString() }}</span>
           </div>
 
@@ -33,7 +36,8 @@
                 <p class="text-sm font-medium text-slate-800">{{ item.productName }}</p>
                 <p class="text-xs text-slate-400">{{ item.ownerName }}</p>
               </div>
-              <template v-if="editing">
+              <!-- Editing: normal sale -->
+              <template v-if="editing && !editIsBundle">
                 <div class="flex items-center gap-1 shrink-0">
                   <button @click="editChangeQty(idx, -1)" class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">−</button>
                   <span class="w-6 text-center text-sm">{{ item.quantity }}</span>
@@ -51,14 +55,39 @@
                 </div>
                 <span class="text-sm font-semibold text-slate-700 shrink-0 w-16 text-right">¥{{ item.subtotal.toLocaleString() }}</span>
               </template>
+              <!-- Editing: bundle sale -->
+              <template v-else-if="editing && editIsBundle">
+                <div class="flex items-center gap-1 shrink-0">
+                  <button @click="editChangeQty(idx, -1)" class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">−</button>
+                  <span class="w-6 text-center text-sm">{{ item.quantity }}</span>
+                  <button @click="editChangeQty(idx, 1)" class="w-6 h-6 rounded-full bg-primary-400 text-white flex items-center justify-center text-xs">+</button>
+                </div>
+              </template>
+              <!-- View mode -->
               <template v-else>
-                <span class="text-xs text-slate-400 shrink-0">¥{{ item.unitPrice.toLocaleString() }} × {{ item.quantity }}</span>
+                <span v-if="!sale.isBundle" class="text-xs text-slate-400 shrink-0">¥{{ item.unitPrice.toLocaleString() }} × {{ item.quantity }}</span>
+                <span v-else class="text-xs text-slate-400 shrink-0">× {{ item.quantity }}</span>
                 <span class="text-sm font-semibold text-slate-700 shrink-0">¥{{ item.subtotal.toLocaleString() }}</span>
               </template>
             </div>
           </div>
 
-          <div class="border-t border-slate-200 mt-4 pt-4">
+          <!-- Bundle total input (editing) -->
+          <div v-if="editing && editIsBundle" class="border-t border-slate-200 mt-4 pt-4">
+            <label class="label-text mb-1">セット売上金額</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+              <input
+                v-model.number="editBundleTotal"
+                type="number"
+                min="0"
+                class="input-field pl-8 text-lg font-bold text-emerald-600"
+                placeholder="売上金額を入力"
+              />
+            </div>
+          </div>
+
+          <div v-else class="border-t border-slate-200 mt-4 pt-4">
             <div class="flex items-center justify-between">
               <span class="font-semibold text-slate-800">合計</span>
               <span class="text-lg font-bold text-emerald-600">¥{{ displayTotalAmount.toLocaleString() }}</span>
@@ -98,6 +127,7 @@
 
 <script setup lang="ts">
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-vue-next'
+import { distributeBundleAmount } from '~/composables/useSales'
 import type { SaleItem } from '~/composables/useSales'
 
 definePageMeta({ middleware: 'auth' })
@@ -115,6 +145,8 @@ const sale = ref<any>(null)
 const editing = ref(false)
 const editItems = ref<SaleItem[]>([])
 const editNote = ref('')
+const editIsBundle = ref(false)
+const editBundleTotal = ref<number>(0)
 const showDeleteConfirm = ref(false)
 const isAdmin = ref(false)
 
@@ -125,6 +157,7 @@ const canEdit = computed(() => {
 
 const displayTotalAmount = computed(() => {
   if (editing.value) {
+    if (editIsBundle.value) return editBundleTotal.value || 0
     return editItems.value.reduce((sum, i) => sum + i.subtotal, 0)
   }
   return sale.value?.totalAmount ?? 0
@@ -133,6 +166,8 @@ const displayTotalAmount = computed(() => {
 const startEdit = () => {
   editItems.value = sale.value.items.map((i: SaleItem) => ({ ...i }))
   editNote.value = sale.value.note || ''
+  editIsBundle.value = sale.value.isBundle || false
+  editBundleTotal.value = sale.value.totalAmount || 0
   editing.value = true
 }
 
@@ -151,13 +186,25 @@ const editChangeQty = (idx: number, delta: number) => {
   const newQty = item.quantity + delta
   if (newQty <= 0) return
   item.quantity = newQty
-  item.subtotal = item.unitPrice * item.quantity
+  if (!editIsBundle.value) {
+    item.subtotal = item.unitPrice * item.quantity
+  }
 }
 
 const handleUpdate = async () => {
   submitting.value = true
   try {
-    await updateSale(saleId, sale.value.items, editItems.value, editNote.value)
+    let itemsToSave = editItems.value
+    if (editIsBundle.value) {
+      const total = editBundleTotal.value
+      if (!total || total <= 0) {
+        toast.error('売上金額を入力してください')
+        submitting.value = false
+        return
+      }
+      itemsToSave = distributeBundleAmount(editItems.value, total)
+    }
+    await updateSale(saleId, sale.value.items, itemsToSave, editNote.value, editIsBundle.value)
     sale.value = await getSale(saleId)
     editing.value = false
     toast.success('売上を更新しました')

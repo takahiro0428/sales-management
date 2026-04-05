@@ -157,15 +157,15 @@ const handleDrop = (e: DragEvent) => {
   if (files) addFiles(Array.from(files).filter((f) => f.type.startsWith('image/')))
 }
 
-// Queue for AI analysis with concurrency control
-const analysisQueue: BulkItem[] = []
+// Queue for AI analysis with concurrency control (store IDs to avoid reactivity bypass)
+const analysisQueue: number[] = []
 let activeAnalyses = 0
 
 const processQueue = async () => {
   while (analysisQueue.length > 0 && activeAnalyses < AI_CONCURRENCY) {
-    const item = analysisQueue.shift()!
+    const itemId = analysisQueue.shift()!
     activeAnalyses++
-    analyzeItem(item).finally(() => {
+    analyzeItem(itemId).finally(() => {
       activeAnalyses--
       processQueue()
     })
@@ -175,8 +175,9 @@ const processQueue = async () => {
 const addFiles = (files: File[]) => {
   for (const file of files) {
     if (!file.type.startsWith('image/')) continue
-    const item: BulkItem = {
-      id: nextItemId++,
+    const id = nextItemId++
+    items.value.push({
+      id,
       file,
       previewUrl: URL.createObjectURL(file),
       name: '',
@@ -185,14 +186,15 @@ const addFiles = (files: File[]) => {
       category: 'その他',
       tags: [],
       aiStatus: 'analyzing',
-    }
-    items.value.push(item)
-    analysisQueue.push(item)
+    })
+    analysisQueue.push(id)
   }
   processQueue()
 }
 
-const analyzeItem = async (item: BulkItem) => {
+const analyzeItem = async (itemId: number) => {
+  const item = items.value.find((i) => i.id === itemId)
+  if (!item) return
   try {
     const result = await suggestFromImage(item.file)
     if (result.name) {
@@ -212,7 +214,7 @@ const removeItem = (idx: number) => {
   const item = items.value[idx]
   URL.revokeObjectURL(item.previewUrl)
   // Remove from analysis queue if still pending
-  const queueIdx = analysisQueue.indexOf(item)
+  const queueIdx = analysisQueue.indexOf(item.id)
   if (queueIdx !== -1) analysisQueue.splice(queueIdx, 1)
   items.value.splice(idx, 1)
 }

@@ -91,7 +91,10 @@
               class="card block hover:shadow-md transition-shadow"
             >
               <div class="flex items-center justify-between mb-2">
-                <span class="text-xs text-slate-400">{{ formatDate(s.createdAt) }}</span>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs text-slate-400">{{ formatDate(s.createdAt) }}</span>
+                  <span v-if="s.isBundle" class="px-1 py-0.5 text-[10px] font-semibold bg-primary-100 text-primary-600 rounded">セット</span>
+                </div>
                 <span class="text-sm font-bold text-emerald-600">¥{{ s.totalAmount.toLocaleString() }}</span>
               </div>
               <p class="text-sm font-medium text-slate-700 truncate">
@@ -114,7 +117,10 @@
               </thead>
               <tbody>
                 <tr v-for="s in sales" :key="s.id" class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" @click="navigateTo(`/sales/${s.id}`)">
-                  <td class="py-3 px-4 text-sm text-slate-600">{{ formatDate(s.createdAt) }}</td>
+                  <td class="py-3 px-4 text-sm text-slate-600">
+                    <span>{{ formatDate(s.createdAt) }}</span>
+                    <span v-if="s.isBundle" class="ml-1.5 px-1 py-0.5 text-[10px] font-semibold bg-primary-100 text-primary-600 rounded">セット</span>
+                  </td>
                   <td class="py-3 px-4 text-sm text-slate-700">{{ s.items.map((i: any) => `${i.productName}×${i.quantity}`).join('、') }}</td>
                   <td class="py-3 px-4 text-sm text-slate-600">{{ s.createdByName }}</td>
                   <td class="py-3 px-4 text-right text-sm font-semibold text-emerald-600">¥{{ s.totalAmount.toLocaleString() }}</td>
