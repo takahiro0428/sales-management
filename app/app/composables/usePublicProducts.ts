@@ -36,13 +36,16 @@ export const usePublicProducts = () => {
       orderBy('createdAt', 'desc'),
     )
     const snap = await getDocs(q)
-    return snap.docs.map((d) => ({
-      id: d.id,
-      description: '',
-      category: 'その他',
-      tags: [],
-      ...d.data(),
-    }) as Product)
+    return snap.docs
+      .map((d) => ({
+        id: d.id,
+        description: '',
+        category: 'その他',
+        tags: [],
+        status: 'published',
+        ...d.data(),
+      }) as Product)
+      .filter((p) => p.status !== 'unpublished')
   }
 
   const getGroupInfo = async (groupId: string): Promise<Group | null> => {

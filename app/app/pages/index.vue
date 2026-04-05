@@ -46,6 +46,30 @@
         </div>
       </div>
 
+      <!-- Asset Summary -->
+      <div class="card mb-6">
+        <div class="flex items-center justify-between mb-3 cursor-pointer" @click="showAssetDetail = !showAssetDetail">
+          <div class="flex items-center gap-2">
+            <TrendingUp :size="18" class="text-primary-500" />
+            <h3 class="section-title">総資産額</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold text-primary-600">¥{{ totalAsset.toLocaleString() }}</span>
+            <component :is="showAssetDetail ? ChevronUp : ChevronDown" :size="16" class="text-slate-400" />
+          </div>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">全商品の価格×在庫数の合計</p>
+        <div v-if="showAssetDetail && assetByOwner.length > 0" class="border-t border-slate-100 pt-3 space-y-2">
+          <div v-for="[uid, data] in assetByOwner" :key="uid" class="flex items-center justify-between">
+            <div>
+              <span class="text-sm font-medium text-slate-700">{{ data.name }}</span>
+              <span class="text-xs text-slate-400 ml-2">{{ data.count }}個</span>
+            </div>
+            <span class="text-sm font-semibold text-primary-500">¥{{ data.amount.toLocaleString() }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Quick Actions -->
       <div class="grid grid-cols-3 gap-3 mb-6">
         <NuxtLink to="/sales/new" class="card text-center hover:shadow-md transition-shadow py-4">
@@ -96,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { Users, Coins, Package, ClipboardList } from 'lucide-vue-next'
+import { Users, Coins, Package, ClipboardList, TrendingUp, ChevronDown, ChevronUp } from 'lucide-vue-next'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -133,6 +157,24 @@ const stats = computed(() => {
 })
 
 const recentSales = computed(() => sales.value.slice(0, 5))
+
+const totalAsset = computed(() =>
+  products.value.reduce((sum: number, p: any) => sum + (p.price || 0) * (p.stock || 0), 0),
+)
+
+const assetByOwner = computed(() => {
+  const map: Record<string, { name: string; amount: number; count: number }> = {}
+  for (const p of products.value) {
+    if (!map[p.ownerUid]) {
+      map[p.ownerUid] = { name: p.ownerName, amount: 0, count: 0 }
+    }
+    map[p.ownerUid].amount += (p.price || 0) * (p.stock || 0)
+    map[p.ownerUid].count += p.stock || 0
+  }
+  return Object.entries(map).sort((a, b) => b[1].amount - a[1].amount)
+})
+
+const showAssetDetail = ref(false)
 
 const loadGroupData = async () => {
   if (!selectedGroupId.value) return

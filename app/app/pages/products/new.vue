@@ -21,6 +21,7 @@
             type="button"
             role="switch"
             :aria-checked="aiAutoMode"
+            aria-label="AI自動入力モード"
             @click="aiAutoMode = !aiAutoMode"
             class="relative w-10 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-300"
             :class="aiAutoMode ? 'bg-primary-500' : 'bg-slate-200'"
@@ -31,7 +32,7 @@
         </label>
         <Sparkles v-if="aiAutoMode" :size="16" class="text-primary-500" />
       </div>
-      <p v-if="aiAutoMode" class="text-xs text-slate-400 -mt-3">写真から商品名・説明・カテゴリ・タグを自動入力します</p>
+      <p v-if="aiAutoMode" class="text-xs text-slate-400 -mt-3">写真から商品名・説明・価格・カテゴリ・タグを自動入力します</p>
 
       <!-- Image Upload -->
       <div>
@@ -159,6 +160,28 @@
         </div>
       </div>
 
+      <!-- Status -->
+      <div>
+        <label class="label-text">公開ステータス</label>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="form.status === 'published'"
+            aria-label="公開ステータス"
+            @click="form.status = form.status === 'published' ? 'unpublished' : 'published'"
+            class="relative w-10 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-300"
+            :class="form.status === 'published' ? 'bg-emerald-500' : 'bg-slate-200'"
+          >
+            <span class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform" :class="form.status === 'published' ? 'translate-x-4' : ''" />
+          </button>
+          <span class="text-sm font-medium" :class="form.status === 'published' ? 'text-emerald-600' : 'text-slate-400'">
+            <component :is="form.status === 'published' ? Eye : EyeOff" :size="14" class="inline mr-1" />
+            {{ form.status === 'published' ? '公開' : '非公開' }}
+          </span>
+        </div>
+      </div>
+
       <button type="submit" class="btn-primary w-full" :disabled="submitting">
         <LoadingSpinner v-if="submitting" size="sm" />
         {{ submitting ? '登録中...' : '商品を登録' }}
@@ -168,8 +191,8 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, Camera, Users, Sparkles, X, Image as ImageIcon } from 'lucide-vue-next'
-import { PRODUCT_CATEGORIES } from '~/composables/useProducts'
+import { ArrowLeft, Camera, Users, Sparkles, X, Image as ImageIcon, Eye, EyeOff } from 'lucide-vue-next'
+import { PRODUCT_CATEGORIES, type ProductStatus } from '~/composables/useProducts'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -211,9 +234,10 @@ const form = reactive({
   description: '',
   price: 0,
   ownerUid: '',
-  stock: 0,
+  stock: 1,
   category: 'その他',
   tags: [] as string[],
+  status: 'published' as ProductStatus,
 })
 
 const handleFileSelect = (e: Event) => {
@@ -246,6 +270,7 @@ const handleAiAutoFill = async (file: File) => {
     if (result.name) {
       form.name = result.name
       form.description = result.description
+      if (result.price > 0) form.price = result.price
       form.category = result.category
       form.tags = result.tags
       toast.success('AIが商品情報を入力しました')
@@ -314,15 +339,17 @@ const handleSubmit = async () => {
       form.description,
       form.category,
       [...form.tags],
+      form.status,
     )
     toast.success('商品を登録しました')
     form.name = ''
     form.description = ''
     form.price = 0
     form.ownerUid = userProfile.value?.uid || ''
-    form.stock = 0
+    form.stock = 1
     form.category = 'その他'
     form.tags = []
+    form.status = 'published'
     tagInput.value = ''
     clearImage()
   } catch (e) {

@@ -42,6 +42,14 @@
             <div v-if="product.tags?.length > 0" class="flex flex-wrap gap-1.5 mt-2">
               <span v-for="tag in product.tags" :key="tag" class="badge-sub1">{{ tag }}</span>
             </div>
+            <div class="mt-3">
+              <span v-if="(product.status || 'published') === 'published'" class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                <Eye :size="12" /> 公開
+              </span>
+              <span v-else class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                <EyeOff :size="12" /> 非公開
+              </span>
+            </div>
           </div>
 
           <template v-else>
@@ -104,6 +112,26 @@
                 <button type="button" @click="addEditTag" class="btn-secondary btn-sm shrink-0">追加</button>
               </div>
             </div>
+            <div>
+              <label class="label-text">公開ステータス</label>
+              <div class="flex items-center gap-3">
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="editForm.status === 'published'"
+                  aria-label="公開ステータス"
+                  @click="editForm.status = editForm.status === 'published' ? 'unpublished' : 'published'"
+                  class="relative w-10 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-300"
+                  :class="editForm.status === 'published' ? 'bg-emerald-500' : 'bg-slate-200'"
+                >
+                  <span class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform" :class="editForm.status === 'published' ? 'translate-x-4' : ''" />
+                </button>
+                <span class="text-sm font-medium" :class="editForm.status === 'published' ? 'text-emerald-600' : 'text-slate-400'">
+                  <component :is="editForm.status === 'published' ? Eye : EyeOff" :size="14" class="inline mr-1" />
+                  {{ editForm.status === 'published' ? '公開' : '非公開' }}
+                </span>
+              </div>
+            </div>
           </template>
 
           <div class="flex gap-3">
@@ -156,8 +184,8 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, Package, ImageIcon, Pencil, Trash2, Minus, Plus, Sparkles, X } from 'lucide-vue-next'
-import { PRODUCT_CATEGORIES } from '~/composables/useProducts'
+import { ArrowLeft, Package, ImageIcon, Pencil, Trash2, Minus, Plus, Sparkles, X, Eye, EyeOff } from 'lucide-vue-next'
+import { PRODUCT_CATEGORIES, type ProductStatus } from '~/composables/useProducts'
 
 definePageMeta({ middleware: 'auth' })
 
@@ -186,7 +214,7 @@ const triggerFileInput = () => {
   fileInput.value?.click()
 }
 
-const editForm = reactive({ name: '', description: '', price: 0, ownerUid: '', category: 'その他', tags: [] as string[] })
+const editForm = reactive({ name: '', description: '', price: 0, ownerUid: '', category: 'その他', tags: [] as string[], status: 'published' as ProductStatus })
 
 const handleFileSelect = (e: Event) => {
   const input = e.target as HTMLInputElement
@@ -206,6 +234,7 @@ const startEdit = () => {
   editForm.ownerUid = product.value.ownerUid
   editForm.category = product.value.category || 'その他'
   editForm.tags = [...(product.value.tags || [])]
+  editForm.status = product.value.status || 'published'
   editing.value = true
 }
 
@@ -252,6 +281,7 @@ const saveEdit = async () => {
       ownerName: owner?.displayName || product.value.ownerName,
       category: editForm.category,
       tags: [...editForm.tags],
+      status: editForm.status,
       groupId: currentGroupId.value,
     }
     await updateProduct(productId, updateData as any, newImageFile.value)

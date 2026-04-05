@@ -89,11 +89,16 @@ service cloud.firestore {
     // Products collection (public read for shop catalog)
     match /products/{productId} {
       allow read: if true;
-      // Create: must be group member or platform admin
+      // Create: must be group member or platform admin; status must be valid if provided
       allow create: if isAuthenticated()
-        && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId));
+        && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId))
+        && (!request.resource.data.keys().hasAny(['status'])
+            || request.resource.data.status in ['published', 'unpublished']);
       // Update: product owner, platform admin, or stock-only updates by group member
+      // Status must be valid if changed
       allow update: if isAuthenticated()
+        && (!request.resource.data.keys().hasAny(['status'])
+            || request.resource.data.status in ['published', 'unpublished'])
         && (isPlatformAdmin()
           || resource.data.ownerUid == request.auth.uid
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt'])
