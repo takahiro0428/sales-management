@@ -1,10 +1,16 @@
 <template>
   <div>
-    <div class="flex items-center gap-3 mb-6">
-      <button @click="$router.back()" class="text-slate-400 hover:text-slate-600">
-        <ArrowLeft :size="20" />
-      </button>
-      <h2 class="page-title">商品を登録</h2>
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <button @click="$router.back()" class="text-slate-400 hover:text-slate-600">
+          <ArrowLeft :size="20" />
+        </button>
+        <h2 class="page-title">商品を登録</h2>
+      </div>
+      <NuxtLink v-if="currentGroupId" to="/products/bulk-new" class="btn-secondary btn-sm">
+        <Images :size="16" />
+        一括登録
+      </NuxtLink>
     </div>
 
     <div v-if="!currentGroupId">
@@ -191,7 +197,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, Camera, Users, Sparkles, X, Image as ImageIcon, Eye, EyeOff } from 'lucide-vue-next'
+import { ArrowLeft, Camera, Users, Sparkles, X, Image as ImageIcon, Eye, EyeOff, Images } from 'lucide-vue-next'
 import { PRODUCT_CATEGORIES, type ProductStatus } from '~/composables/useProducts'
 
 definePageMeta({ middleware: 'auth' })
