@@ -9,6 +9,7 @@ export interface AiSuggestion {
 export interface AiImageSuggestion extends AiSuggestion {
   name: string
   description: string
+  price: number
 }
 
 export const useAiSuggestion = () => {
@@ -92,9 +93,10 @@ ${PRODUCT_CATEGORIES.join(', ')}
 ${PRODUCT_CATEGORIES.join(', ')}
 
 タグは商品の特徴を表す短いキーワードを3〜5個提案してください。
+価格はフリーマーケットでの一般的な販売価格（日本円）を参考値として提案してください。
 
 以下のJSON形式で回答してください（JSONのみ、他のテキストは不要）:
-{"name": "商品名", "description": "商品の説明文（2〜3文）", "category": "カテゴリ名", "tags": ["タグ1", "タグ2", "タグ3"]}`
+{"name": "商品名", "description": "商品の説明文（2〜3文）", "price": 500, "category": "カテゴリ名", "tags": ["タグ1", "タグ2", "タグ3"]}`
 
       const result = await model.generateContent([
         { inlineData: { mimeType: file.type, data: base64Data } },
@@ -104,13 +106,14 @@ ${PRODUCT_CATEGORIES.join(', ')}
 
       const jsonMatch = text.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
-        return { name: '', description: '', category: 'その他', tags: [] }
+        return { name: '', description: '', price: 0, category: 'その他', tags: [] }
       }
 
       const parsed = JSON.parse(jsonMatch[0])
 
       const name = typeof parsed.name === 'string' ? parsed.name : ''
       const description = typeof parsed.description === 'string' ? parsed.description : ''
+      const price = typeof parsed.price === 'number' && parsed.price >= 0 ? Math.round(parsed.price) : 0
       const category = PRODUCT_CATEGORIES.includes(parsed.category)
         ? parsed.category
         : 'その他'
@@ -118,10 +121,10 @@ ${PRODUCT_CATEGORIES.join(', ')}
         ? parsed.tags.filter((t: unknown) => typeof t === 'string' && t.length > 0).slice(0, 5)
         : []
 
-      return { name, description, category, tags }
+      return { name, description, price, category, tags }
     } catch (e) {
       console.warn('[AI Suggestion] 画像からの自動生成に失敗しました:', e)
-      return { name: '', description: '', category: 'その他', tags: [] }
+      throw e
     }
   }
 

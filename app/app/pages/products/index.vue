@@ -2,10 +2,16 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <h2 class="page-title">商品管理</h2>
-      <NuxtLink v-if="currentGroupId" to="/products/new" class="btn-primary btn-sm">
-        <PlusCircle :size="16" />
-        追加
-      </NuxtLink>
+      <div v-if="currentGroupId" class="flex gap-2">
+        <NuxtLink to="/products/bulk-new" class="btn-secondary btn-sm">
+          <Images :size="16" />
+          一括登録
+        </NuxtLink>
+        <NuxtLink to="/products/new" class="btn-primary btn-sm">
+          <PlusCircle :size="16" />
+          追加
+        </NuxtLink>
+      </div>
     </div>
 
     <div v-if="!currentGroupId">
@@ -34,6 +40,13 @@
             <select v-model="filterOwner" class="input-field">
               <option value="">すべてのオーナー</option>
               <option v-for="m in members" :key="m.uid" :value="m.uid">{{ m.displayName }}</option>
+            </select>
+          </div>
+          <div class="sm:w-36">
+            <select v-model="filterStatus" class="input-field">
+              <option value="">すべてのステータス</option>
+              <option value="published">公開</option>
+              <option value="unpublished">非公開</option>
             </select>
           </div>
         </div>
@@ -66,6 +79,9 @@
                 <span class="text-sm font-semibold text-primary-500">¥{{ p.price.toLocaleString() }}</span>
                 <span :class="p.stock > 0 ? 'badge-green' : 'badge-red'">在庫 {{ p.stock }}</span>
                 <span class="badge-primary text-[10px]">{{ p.category || 'その他' }}</span>
+                <span v-if="(p.status || 'published') === 'unpublished'" class="inline-flex items-center gap-0.5 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                  <EyeOff :size="10" /> 非公開
+                </span>
               </div>
             </div>
           </div>
@@ -82,6 +98,7 @@
               <th class="text-left py-3 px-4 text-sm font-medium text-slate-500">オーナー</th>
               <th class="text-right py-3 px-4 text-sm font-medium text-slate-500">価格</th>
               <th class="text-right py-3 px-4 text-sm font-medium text-slate-500">在庫</th>
+              <th class="text-center py-3 px-4 text-sm font-medium text-slate-500">ステータス</th>
               <th class="text-right py-3 px-4 text-sm font-medium text-slate-500"></th>
             </tr>
           </thead>
@@ -106,6 +123,14 @@
               <td class="py-3 px-4 text-right">
                 <span :class="p.stock > 0 ? 'badge-green' : 'badge-red'">{{ p.stock }}</span>
               </td>
+              <td class="py-3 px-4 text-center">
+                <span v-if="(p.status || 'published') === 'published'" class="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                  <Eye :size="10" /> 公開
+                </span>
+                <span v-else class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                  <EyeOff :size="10" /> 非公開
+                </span>
+              </td>
               <td class="py-3 px-4 text-right">
                 <NuxtLink :to="`/products/${p.id}`" class="text-primary-500 hover:text-primary-600 text-sm">詳細</NuxtLink>
               </td>
@@ -118,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { PlusCircle, Package, Users, Search } from 'lucide-vue-next'
+import { PlusCircle, Package, Users, Search, Images, Eye, EyeOff } from 'lucide-vue-next'
 import { PRODUCT_CATEGORIES } from '~/composables/useProducts'
 
 definePageMeta({ middleware: 'auth' })
@@ -134,6 +159,7 @@ const members = ref<any[]>([])
 const searchQuery = ref('')
 const filterOwner = ref('')
 const filterCategory = ref('')
+const filterStatus = ref('')
 
 const filteredProducts = computed(() => {
   let result = products.value
@@ -146,6 +172,9 @@ const filteredProducts = computed(() => {
   }
   if (filterCategory.value) {
     result = result.filter((p) => (p.category || 'その他') === filterCategory.value)
+  }
+  if (filterStatus.value) {
+    result = result.filter((p) => (p.status || 'published') === filterStatus.value)
   }
   return result
 })

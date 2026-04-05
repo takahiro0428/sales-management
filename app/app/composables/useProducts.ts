@@ -14,6 +14,8 @@ import {
   getDownloadURL,
 } from 'firebase/storage'
 
+export type ProductStatus = 'published' | 'unpublished'
+
 export interface Product {
   id: string
   groupId: string
@@ -27,6 +29,7 @@ export interface Product {
   stock: number
   category: string
   tags: string[]
+  status: ProductStatus
   createdAt: any
   updatedAt: any
 }
@@ -120,6 +123,7 @@ export const useProducts = () => {
     description?: string,
     category?: string,
     tags?: string[],
+    status?: ProductStatus,
   ) => {
     const productId = await addDocument('products', {
       groupId,
@@ -133,6 +137,7 @@ export const useProducts = () => {
       stock: initialStock,
       category: category || 'その他',
       tags: tags || [],
+      status: status || 'published',
     })
 
     if (imageFile) {
@@ -155,6 +160,7 @@ export const useProducts = () => {
       description: '',
       category: 'その他',
       tags: [],
+      status: 'published' as ProductStatus,
       ...d.data(),
     }) as Product)
   }
@@ -172,6 +178,7 @@ export const useProducts = () => {
       description: '',
       category: 'その他',
       tags: [],
+      status: 'published' as ProductStatus,
       ...d.data(),
     }) as Product)
   }
@@ -223,6 +230,7 @@ export const useProducts = () => {
       description: '',
       category: 'その他',
       tags: [],
+      status: 'published' as ProductStatus,
       ...raw,
     }
   }
