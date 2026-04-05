@@ -87,10 +87,16 @@ export const useSales = () => {
     const saleRef = doc(collection($firestore, 'sales'))
 
     await runTransaction($firestore, async (transaction) => {
-      // Verify and update stock for each item
-      for (const item of items) {
-        const productRef = doc($firestore, 'products', item.productId)
-        const productSnap = await transaction.get(productRef)
+      // Phase 1: All reads first
+      const productRefs = items.map((item) => doc($firestore, 'products', item.productId))
+      const productSnaps = await Promise.all(
+        productRefs.map((ref) => transaction.get(ref)),
+      )
+
+      // Phase 2: Validate stock
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]!
+        const productSnap = productSnaps[i]!
         if (!productSnap.exists()) {
           throw new Error(`商品が見つかりません: ${item.productName}`)
         }
@@ -98,8 +104,13 @@ export const useSales = () => {
         if (currentStock < item.quantity) {
           throw new Error(`在庫不足: ${item.productName} (残り${currentStock}個)`)
         }
-        transaction.update(productRef, {
-          stock: currentStock - item.quantity,
+      }
+
+      // Phase 3: All writes
+      for (let i = 0; i < items.length; i++) {
+        const currentStock = productSnaps[i]!.data()!.stock || 0
+        transaction.update(productRefs[i]!, {
+          stock: currentStock - items[i]!.quantity,
           updatedAt: serverTimestamp(),
         })
       }
@@ -145,16 +156,22 @@ export const useSales = () => {
     }
 
     await runTransaction($firestore, async (transaction) => {
-      // Verify sale still exists
+      // Phase 1: All reads first
       const saleSnap = await transaction.get(saleRef)
+      const productEntries = Array.from(stockDelta.entries())
+      const productRefs = productEntries.map(([productId]) => doc($firestore, 'products', productId))
+      const productSnaps = await Promise.all(
+        productRefs.map((ref) => transaction.get(ref)),
+      )
+
+      // Phase 2: Validate
       if (!saleSnap.exists()) {
         throw new Error('売上データが見つかりません（削除された可能性があります）')
       }
-
-      // Apply net stock changes per product in one update each
-      for (const [productId, { delta, name }] of stockDelta) {
-        const productRef = doc($firestore, 'products', productId)
-        const productSnap = await transaction.get(productRef)
+      const stockUpdates: { ref: typeof productRefs[number]; newStock: number }[] = []
+      for (let i = 0; i < productEntries.length; i++) {
+        const [, { delta, name }] = productEntries[i]!
+        const productSnap = productSnaps[i]!
         if (!productSnap.exists()) {
           throw new Error(`商品が見つかりません: ${name}`)
         }
@@ -163,12 +180,16 @@ export const useSales = () => {
         if (newStock < 0) {
           throw new Error(`在庫不足: ${name} (残り${currentStock}個)`)
         }
-        transaction.update(productRef, {
+        stockUpdates.push({ ref: productRefs[i]!, newStock })
+      }
+
+      // Phase 3: All writes
+      for (const { ref, newStock } of stockUpdates) {
+        transaction.update(ref, {
           stock: newStock,
           updatedAt: serverTimestamp(),
         })
       }
-
       transaction.update(saleRef, {
         items: newItems,
         totalAmount: newTotalAmount,
@@ -183,20 +204,24 @@ export const useSales = () => {
     const saleRef = doc($firestore, 'sales', saleId)
 
     await runTransaction($firestore, async (transaction) => {
-      // Verify sale still exists to lock the document
+      // Phase 1: All reads first
       const saleSnap = await transaction.get(saleRef)
+      const productRefs = items.map((item) => doc($firestore, 'products', item.productId))
+      const productSnaps = await Promise.all(
+        productRefs.map((ref) => transaction.get(ref)),
+      )
+
+      // Phase 2: Validate
       if (!saleSnap.exists()) {
         throw new Error('売上データが見つかりません（既に削除された可能性があります）')
       }
 
-      // Restore stock for all items
-      for (const item of items) {
-        const productRef = doc($firestore, 'products', item.productId)
-        const productSnap = await transaction.get(productRef)
-        if (productSnap.exists()) {
-          const currentStock = productSnap.data().stock || 0
-          transaction.update(productRef, {
-            stock: currentStock + item.quantity,
+      // Phase 3: All writes - restore stock
+      for (let i = 0; i < items.length; i++) {
+        if (productSnaps[i]!.exists()) {
+          const currentStock = productSnaps[i]!.data()!.stock || 0
+          transaction.update(productRefs[i]!, {
+            stock: currentStock + items[i]!.quantity,
             updatedAt: serverTimestamp(),
           })
         }
