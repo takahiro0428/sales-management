@@ -189,12 +189,14 @@ const triggerFileInput = () => {
 const editForm = reactive({ name: '', description: '', price: 0, ownerUid: '', category: 'その他', tags: [] as string[] })
 
 const handleFileSelect = (e: Event) => {
-  const file = (e.target as HTMLInputElement).files?.[0]
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
   if (file && file.type.startsWith('image/')) {
     if (newImagePreview.value) URL.revokeObjectURL(newImagePreview.value)
     newImageFile.value = file
     newImagePreview.value = URL.createObjectURL(file)
   }
+  input.value = ''
 }
 
 const startEdit = () => {
@@ -238,15 +240,22 @@ const handleAiSuggest = async () => {
 }
 
 const saveEdit = async () => {
+  if (!currentGroupId.value) return
   submitting.value = true
   try {
     const owner = members.value.find((m) => m.uid === editForm.ownerUid)
-    await updateProduct(productId, {
-      ...editForm,
+    const updateData = {
+      name: editForm.name,
+      description: editForm.description,
+      price: editForm.price,
+      ownerUid: editForm.ownerUid,
       ownerName: owner?.displayName || product.value.ownerName,
-      groupId: currentGroupId.value!,
-    } as any, newImageFile.value)
-    product.value = { ...product.value, ...editForm, ownerName: owner?.displayName || product.value.ownerName }
+      category: editForm.category,
+      tags: [...editForm.tags],
+      groupId: currentGroupId.value,
+    }
+    await updateProduct(productId, updateData as any, newImageFile.value)
+    product.value = { ...product.value, ...updateData }
     if (newImagePreview.value) product.value.imageUrl = newImagePreview.value
     editing.value = false
     toast.success('商品を更新しました')
