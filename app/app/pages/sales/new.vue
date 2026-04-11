@@ -41,8 +41,42 @@
         <!-- Product Selection -->
         <div class="card">
           <h3 class="section-title mb-3">商品を選択</h3>
-          <div class="space-y-3">
-            <div v-for="product in products" :key="product.id"
+
+          <!-- 検索 -->
+          <div class="mb-3">
+            <div class="relative">
+              <Search :size="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                v-model="searchQuery"
+                type="text"
+                class="input-field pl-9"
+                placeholder="商品名・オーナー・カテゴリ・タグで検索..."
+              />
+              <button
+                v-if="searchQuery"
+                type="button"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label="検索クリア"
+                @click="searchQuery = ''"
+              >
+                <X :size="16" />
+              </button>
+            </div>
+            <div class="mt-2 flex items-center justify-between text-xs text-slate-400">
+              <span>{{ filteredProducts.length }} / {{ products.length }}件</span>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                <input v-model="hideOutOfStock" type="checkbox" class="w-3.5 h-3.5 rounded border-slate-300 text-primary-500 focus:ring-primary-200" />
+                <span>在庫切れを除く</span>
+              </label>
+            </div>
+          </div>
+
+          <div v-if="filteredProducts.length === 0" class="text-center text-sm text-slate-400 py-6">
+            該当する商品がありません
+          </div>
+
+          <div v-else class="space-y-3">
+            <div v-for="product in filteredProducts" :key="product.id"
               class="flex items-center gap-3 p-3 rounded-xl border transition-colors cursor-pointer"
               :class="isSelected(product.id) ? 'border-primary-300 bg-primary-50' : 'border-slate-100 hover:border-slate-200'"
               @click="toggleProduct(product)"
@@ -63,6 +97,32 @@
                   <span class="w-8 text-center font-medium">{{ getQty(product.id) }}</span>
                   <button @click="changeQty(product.id, 1)" class="w-7 h-7 rounded-full bg-primary-400 text-white flex items-center justify-center text-sm disabled:opacity-50" :disabled="getQty(product.id) >= product.stock">+</button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 選択済みで絞り込みから外れた商品の表示 -->
+          <div v-if="hiddenSelectedItems.length > 0" class="mt-4 pt-3 border-t border-slate-100">
+            <p class="text-xs font-medium text-slate-500 mb-2">
+              選択中で絞り込み対象外の商品({{ hiddenSelectedItems.length }})
+            </p>
+            <div class="space-y-2">
+              <div
+                v-for="item in hiddenSelectedItems"
+                :key="item.productId"
+                class="flex items-center justify-between gap-2 text-xs bg-primary-50 border border-primary-200 rounded-lg p-2"
+              >
+                <span class="flex-1 min-w-0 truncate text-slate-700">
+                  {{ item.productName }} × {{ item.quantity }}
+                </span>
+                <button
+                  type="button"
+                  class="text-slate-400 hover:text-red-500 shrink-0"
+                  aria-label="選択解除"
+                  @click="removeFromCart(item.productId)"
+                >
+                  <X :size="14" />
+                </button>
               </div>
             </div>
           </div>
@@ -151,11 +211,12 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeft, Users, Package } from 'lucide-vue-next'
+import { ArrowLeft, Users, Package, Search, X } from 'lucide-vue-next'
 import { distributeBundleAmount } from '~/composables/useSales'
 
 definePageMeta({ middleware: 'auth' })
 
+const route = useRoute()
 const { userProfile } = useAuth()
 const { getGroupProducts } = useProducts()
 const { createSale } = useSales()
@@ -169,9 +230,35 @@ const cart = ref<Map<string, { quantity: number; unitPrice: number }>>(new Map()
 const note = ref('')
 const bundleMode = ref(false)
 const bundleTotalAmount = ref<number>(0)
+const searchQuery = ref('')
+const hideOutOfStock = ref(false)
 
 const isSelected = (id: string) => cart.value.has(id)
 const getQty = (id: string) => cart.value.get(id)?.quantity || 0
+
+// 商品名・オーナー名・カテゴリ・タグでの部分一致(大文字小文字・全半角無視)。
+// 商品一覧 (products/index.vue) の検索仕様を拡張し、タグ/カテゴリも対象。
+const normalize = (s: string) => (s || '').toLowerCase().trim()
+
+const filteredProducts = computed(() => {
+  const q = normalize(searchQuery.value)
+  return products.value.filter((p: any) => {
+    if (hideOutOfStock.value && (p.stock || 0) <= 0) return false
+    if (!q) return true
+    if (normalize(p.name).includes(q)) return true
+    if (normalize(p.ownerName).includes(q)) return true
+    if (normalize(p.category || '').includes(q)) return true
+    const tags: string[] = Array.isArray(p.tags) ? p.tags : []
+    if (tags.some((t) => normalize(t).includes(q))) return true
+    return false
+  })
+})
+
+const removeFromCart = (id: string) => {
+  if (!cart.value.has(id)) return
+  cart.value.delete(id)
+  cart.value = new Map(cart.value)
+}
 
 const toggleProduct = (product: any) => {
   if (cart.value.has(product.id)) {
@@ -226,6 +313,13 @@ const selectedItems = computed(() => {
 
 const totalAmount = computed(() => selectedItems.value.reduce((sum, i) => sum + i.subtotal, 0))
 
+// 絞り込みから外れた「選択中の商品」。検索で非表示になっても選択が
+// 黙って消えないよう、選択解除用の UI を別枠で表示する。
+const hiddenSelectedItems = computed(() => {
+  const visibleIds = new Set(filteredProducts.value.map((p: any) => p.id))
+  return selectedItems.value.filter((i) => !visibleIds.has(i.productId))
+})
+
 const handleSubmit = async () => {
   if (selectedItems.value.length === 0) return
   submitting.value = true
@@ -261,10 +355,33 @@ const handleSubmit = async () => {
   }
 }
 
+// クエリパラメータで商品を事前選択する(例: 商品一覧からの「売上記録」導線)。
+// ?productId=<id> で指定された商品が在庫ありならカートに追加する。
+const preselectFromQuery = () => {
+  const raw = route.query.productId
+  const ids: string[] = Array.isArray(raw)
+    ? (raw.filter((v): v is string => typeof v === 'string'))
+    : typeof raw === 'string' && raw
+      ? [raw]
+      : []
+  if (ids.length === 0) return
+  let added = 0
+  for (const id of ids) {
+    const product = products.value.find((p) => p.id === id)
+    if (!product) continue
+    if ((product.stock || 0) <= 0) continue
+    if (cart.value.has(id)) continue
+    cart.value.set(id, { quantity: 1, unitPrice: product.price })
+    added++
+  }
+  if (added > 0) cart.value = new Map(cart.value)
+}
+
 onMounted(async () => {
   if (!currentGroupId.value) { loading.value = false; return }
   try {
     products.value = await getGroupProducts(currentGroupId.value)
+    preselectFromQuery()
   } catch (e) {
     toast.error('商品データの読み込みに失敗しました')
   } finally {

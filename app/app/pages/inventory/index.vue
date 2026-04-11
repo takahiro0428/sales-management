@@ -110,12 +110,21 @@ const loading = ref(true)
 const products = ref<any[]>([])
 const lowStockOnly = ref(false)
 
+// 在庫数で並び替えると「在庫調整ボタンを押すたびに行が飛び回る」UX バグが
+// 発生する。安定した並び順にするため、商品名(→オーナー名)の昇順で固定する。
+// ロケール比較で日本語/英数混在でも一貫した順序になる。
+const nameCollator = new Intl.Collator('ja', { sensitivity: 'base', numeric: true })
+
 const filteredProducts = computed(() => {
   let result = [...products.value]
   if (lowStockOnly.value) {
     result = result.filter((p) => p.stock <= LOW_STOCK_THRESHOLD)
   }
-  result.sort((a, b) => a.stock - b.stock)
+  result.sort((a, b) => {
+    const byName = nameCollator.compare(a.name || '', b.name || '')
+    if (byName !== 0) return byName
+    return nameCollator.compare(a.ownerName || '', b.ownerName || '')
+  })
   return result
 })
 

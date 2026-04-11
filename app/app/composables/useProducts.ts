@@ -12,6 +12,7 @@ import {
   ref as storageRef,
   uploadBytes,
   getDownloadURL,
+  deleteObject,
 } from 'firebase/storage'
 import { resizeImage } from '~/utils/imageResize'
 
@@ -50,6 +51,19 @@ export const PRODUCT_CATEGORIES = [
 
 const THUMBNAIL_MAX_SIZE = 300
 const THUMBNAIL_QUALITY = 0.7
+
+// Firebase download URL (.../o/<encoded-path>?alt=media&token=...) から
+// Storage バケット内のオブジェクトパスを復元する。復元できない(=URL が
+// カスタム形式 / 外部ホスト)の場合は null を返す。
+const extractStoragePathFromUrl = (url: string): string | null => {
+  const m = url.match(/\/o\/([^?]+)/)
+  if (!m || !m[1]) return null
+  try {
+    return decodeURIComponent(m[1])
+  } catch {
+    return null
+  }
+}
 
 export const useProducts = () => {
   const { $firestore, $firebaseStorage } = useNuxtApp()
@@ -198,6 +212,41 @@ export const useProducts = () => {
     }
   }
 
+  // Firestore を SoT として先に削除し、その後 Storage の画像/サムネイルを
+  // ベストエフォートでクリーンアップする。事前読み込み失敗および Storage
+  // 削除失敗は主要フロー(Firestore 削除)をブロックしない。
+  // CLAUDE.md 原則 4 (非ブロッキングなエラーハンドリング) に準拠。
+  const deleteProduct = async (productId: string) => {
+    // 事前読み込みはクリーンアップ用の Storage パス取得目的のみ。
+    // 失敗しても主要フローを止めない(孤児ファイルが残るのみ)。
+    let existing: (Product & { id: string }) | null = null
+    try {
+      existing = await getDocument<Product>('products', productId)
+    } catch (e) {
+      console.warn('[useProducts.deleteProduct] pre-fetch for storage cleanup failed', e)
+    }
+
+    // SoT の削除。失敗時はそのまま throw してユーザーに通知する。
+    await deleteDocument('products', productId)
+
+    // Storage はベストエフォート。失敗しても Firestore 削除は成立している。
+    const urls = [existing?.imageUrl, existing?.thumbnailUrl]
+      .filter((u): u is string => typeof u === 'string' && u.length > 0)
+    if (urls.length === 0) return
+
+    const results = await Promise.allSettled(
+      urls.map(async (url) => {
+        const path = extractStoragePathFromUrl(url)
+        if (!path) return
+        await deleteObject(storageRef($firebaseStorage, path))
+      }),
+    )
+    const failed = results.filter((r) => r.status === 'rejected')
+    if (failed.length > 0) {
+      console.warn('[useProducts.deleteProduct] storage cleanup partially failed', failed)
+    }
+  }
+
   return {
     createProduct,
     getGroupProducts,
@@ -206,6 +255,6 @@ export const useProducts = () => {
     updateStock,
     adjustStock,
     getProduct,
-    deleteProduct: (id: string) => deleteDocument('products', id),
+    deleteProduct,
   }
 }

@@ -3,6 +3,16 @@
     <div class="flex items-center justify-between mb-6">
       <h2 class="page-title">商品管理</h2>
       <div v-if="currentGroupId" class="flex flex-wrap gap-2">
+        <button
+          type="button"
+          class="btn-secondary btn-sm"
+          :disabled="exporting || products.length === 0"
+          @click="handleExport"
+        >
+          <LoadingSpinner v-if="exporting" size="sm" />
+          <Download v-else :size="16" />
+          Excelダウンロード
+        </button>
         <NuxtLink to="/products/import" class="btn-secondary btn-sm">
           <FileSpreadsheet :size="16" />
           Excelインポート
@@ -88,6 +98,17 @@
               </div>
             </div>
           </NuxtLink>
+          <div class="mt-3 flex justify-end">
+            <NuxtLink
+              :to="`/sales/new?productId=${p.id}`"
+              class="btn-success btn-sm"
+              :class="{ 'pointer-events-none opacity-40': (p.stock || 0) <= 0 }"
+              :aria-disabled="(p.stock || 0) <= 0 ? 'true' : 'false'"
+            >
+              <Receipt :size="14" />
+              売上記録
+            </NuxtLink>
+          </div>
           <button
             v-if="canEdit(p)"
             type="button"
@@ -280,7 +301,15 @@
                   </span>
                 </template>
               </td>
-              <td class="py-3 px-4 text-right">
+              <td class="py-3 px-4 text-right whitespace-nowrap">
+                <NuxtLink
+                  :to="`/sales/new?productId=${p.id}`"
+                  class="text-emerald-600 hover:text-emerald-700 text-sm mr-3"
+                  :class="{ 'pointer-events-none opacity-40': (p.stock || 0) <= 0 }"
+                  :aria-disabled="(p.stock || 0) <= 0 ? 'true' : 'false'"
+                >
+                  売上記録
+                </NuxtLink>
                 <NuxtLink :to="`/products/${p.id}`" class="text-primary-500 hover:text-primary-600 text-sm">詳細</NuxtLink>
               </td>
             </tr>
@@ -292,13 +321,14 @@
 </template>
 
 <script setup lang="ts">
-import { PlusCircle, Package, Users, Search, Images, Eye, EyeOff, FileSpreadsheet, Pencil } from 'lucide-vue-next'
+import { PlusCircle, Package, Users, Search, Images, Eye, EyeOff, FileSpreadsheet, Pencil, Download, Receipt } from 'lucide-vue-next'
 import { PRODUCT_CATEGORIES, type Product, type ProductStatus } from '~/composables/useProducts'
 
 definePageMeta({ middleware: 'auth' })
 
 const { getGroupProducts, updateProduct } = useProducts()
-const { getGroupMembers } = useGroups()
+const { getGroupMembers, isGroupAdmin } = useGroups()
+const { downloadProductsExport } = useExcelImport()
 const { currentUser, isPlatformAdmin } = useAuth()
 const toast = useToast()
 
@@ -310,6 +340,25 @@ const searchQuery = ref('')
 const filterOwner = ref('')
 const filterCategory = ref('')
 const filterStatus = ref('')
+const exporting = ref(false)
+// 現在のユーザーが表示中グループの groupAdmin かどうか。Firestore rules の
+// products update/delete が groupAdmin を許可しているため、UI の canEdit
+// と products/[id].vue の canDelete を揃えるために必要。
+const isCurrentGroupAdmin = ref(false)
+
+const handleExport = async () => {
+  if (products.value.length === 0) return
+  exporting.value = true
+  try {
+    await downloadProductsExport(products.value)
+    toast.success(`${products.value.length}件を書き出しました`)
+  } catch (e) {
+    console.error('[products.handleExport] failed', e)
+    toast.error('エクスポートに失敗しました')
+  } finally {
+    exporting.value = false
+  }
+}
 
 type EditableField = 'category' | 'owner' | 'price' | 'status'
 
@@ -332,10 +381,12 @@ const mobileDraft = reactive<{ category: string; ownerUid: string; price: number
   status: 'published',
 })
 
+// 編集可否は Firestore rules と一致させる: オーナー / platformAdmin /
+// そのグループの groupAdmin が full-update 可能。
 const canEdit = (p: Product) => {
   const uid = currentUser.value?.uid
   if (!uid) return false
-  return p.ownerUid === uid || isPlatformAdmin.value
+  return p.ownerUid === uid || isPlatformAdmin.value || isCurrentGroupAdmin.value
 }
 
 // Local directives: autofocus an input/select when it mounts; focus+select for number input.
@@ -527,13 +578,17 @@ const saveMobileEdit = async (p: Product) => {
 const loadData = async () => {
   if (!currentGroupId.value) { loading.value = false; return }
   loading.value = true
+  isCurrentGroupAdmin.value = false
   try {
-    const [p, m] = await Promise.all([
+    const uid = currentUser.value?.uid
+    const [p, m, gAdmin] = await Promise.all([
       getGroupProducts(currentGroupId.value),
       getGroupMembers(currentGroupId.value),
+      uid ? isGroupAdmin(currentGroupId.value, uid).catch(() => false) : Promise.resolve(false),
     ])
     products.value = p
     members.value = m.filter((m) => m.status === 'active')
+    isCurrentGroupAdmin.value = gAdmin
   } catch (e) {
     toast.error('データの読み込みに失敗しました')
   } finally {

@@ -22,6 +22,11 @@
           <li>「所有者」列にはグループメンバーの表示名を入力してください</li>
           <li>ファイルをアップロードして内容を確認します</li>
           <li>有効な行のみを登録します（無効な行はスキップされます）</li>
+          <li>
+            既存商品を一括更新する場合は、商品一覧の「Excelダウンロード」から
+            商品ID入りのファイルを出力し、編集後にここで再アップロードしてください。
+            商品ID列を残したまま編集した行は更新、空欄の行は新規登録となります。
+          </li>
         </ol>
         <div class="flex flex-wrap items-center gap-2">
           <button
@@ -84,6 +89,8 @@
         <div class="flex flex-wrap items-center gap-3 text-sm">
           <span class="font-medium text-slate-700">{{ parsedRows.length }}件中</span>
           <span class="badge-green">有効 {{ validRows.length }}件</span>
+          <span v-if="createCount > 0" class="badge-primary">新規 {{ createCount }}件</span>
+          <span v-if="updateCount > 0" class="badge-sub1">更新 {{ updateCount }}件</span>
           <span v-if="invalidCount > 0" class="badge-red">エラー {{ invalidCount }}件</span>
         </div>
       </div>
@@ -94,6 +101,7 @@
           <thead>
             <tr class="border-b border-slate-100">
               <th class="text-left py-2 px-2 text-xs font-medium text-slate-500 w-10">行</th>
+              <th class="text-center py-2 px-2 text-xs font-medium text-slate-500">種別</th>
               <th class="text-left py-2 px-2 text-xs font-medium text-slate-500">商品名</th>
               <th class="text-right py-2 px-2 text-xs font-medium text-slate-500">価格</th>
               <th class="text-left py-2 px-2 text-xs font-medium text-slate-500">所有者</th>
@@ -111,6 +119,10 @@
               :class="row.valid ? 'hover:bg-slate-50' : 'bg-red-50/40 opacity-80'"
             >
               <td class="py-2 px-2 text-slate-400">{{ row.rowNumber }}</td>
+              <td class="py-2 px-2 text-center">
+                <span v-if="row.mode === 'update'" class="badge-sub1 text-[10px]">更新</span>
+                <span v-else class="badge-primary text-[10px]">新規</span>
+              </td>
               <td class="py-2 px-2 font-medium text-slate-800 max-w-[12rem] truncate">
                 {{ row.name || '—' }}
               </td>
@@ -153,6 +165,8 @@
           <div class="flex items-start justify-between gap-2 mb-1">
             <div class="flex items-center gap-2">
               <span class="text-xs text-slate-400">行 {{ row.rowNumber }}</span>
+              <span v-if="row.mode === 'update'" class="badge-sub1 text-[10px]">更新</span>
+              <span v-else class="badge-primary text-[10px]">新規</span>
               <CheckCircle2 v-if="row.valid" :size="14" class="text-emerald-500" />
               <XCircle v-else :size="14" class="text-red-400" />
             </div>
@@ -191,11 +205,7 @@
         @click="handleImport"
       >
         <LoadingSpinner v-if="submitting" size="sm" />
-        {{
-          submitting
-            ? `登録中... (${submittedCount}/${validRows.length})`
-            : `${validRows.length}件を登録`
-        }}
+        {{ submitButtonLabel }}
       </button>
     </div>
   </div>
@@ -214,7 +224,7 @@ import type { ParsedRow, ExcelMember } from '~/composables/useExcelImport'
 
 definePageMeta({ middleware: 'auth' })
 
-const { createProduct } = useProducts()
+const { createProduct, updateProduct, getProduct } = useProducts()
 const { getGroupMembers } = useGroups()
 const { parseProductExcel, downloadTemplate } = useExcelImport()
 const { currentGroupId } = useCurrentGroup()
@@ -233,9 +243,21 @@ const downloadingTemplate = ref(false)
 
 const validRows = computed(() => parsedRows.value.filter((r) => r.valid))
 const invalidCount = computed(() => parsedRows.value.length - validRows.value.length)
+const createCount = computed(() => validRows.value.filter((r) => r.mode === 'create').length)
+const updateCount = computed(() => validRows.value.filter((r) => r.mode === 'update').length)
 const canSubmit = computed(
   () => !submitting.value && !parsing.value && validRows.value.length > 0,
 )
+
+const submitButtonLabel = computed(() => {
+  if (submitting.value) return `処理中... (${submittedCount.value}/${validRows.value.length})`
+  const total = validRows.value.length
+  if (createCount.value > 0 && updateCount.value > 0) {
+    return `${total}件を反映（新規${createCount.value}件 / 更新${updateCount.value}件）`
+  }
+  if (updateCount.value > 0) return `${updateCount.value}件を更新`
+  return `${createCount.value}件を登録`
+})
 
 const resetParsed = () => {
   parsedRows.value = []
@@ -298,35 +320,68 @@ const handleImport = async () => {
 
   submitting.value = true
   submittedCount.value = 0
-  let successCount = 0
+  let createSuccess = 0
+  let updateSuccess = 0
   let failCount = 0
   const successfulRowNumbers = new Set<number>()
+  const rowErrors: { rowNumber: number; message: string }[] = []
 
   const toRegister = [...validRows.value]
   for (const row of toRegister) {
     try {
-      await createProduct(
-        currentGroupId.value,
-        row.name,
-        row.price,
-        row.ownerUid,
-        row.ownerName,
-        row.stock,
-        null,
-        row.description,
-        row.category,
-        [...row.tags],
-        row.status,
-      )
-      successCount++
+      if (row.mode === 'update') {
+        // 更新モードのプリフライト: 同グループの既存商品であることを検証
+        const existing = await getProduct(row.productId)
+        if (!existing) throw new Error('商品が見つかりません')
+        if (existing.groupId !== currentGroupId.value) {
+          throw new Error('他グループの商品は更新できません')
+        }
+        await updateProduct(row.productId, {
+          name: row.name,
+          description: row.description,
+          price: row.price,
+          ownerUid: row.ownerUid,
+          ownerName: row.ownerName,
+          stock: row.stock,
+          category: row.category,
+          tags: [...row.tags],
+          status: row.status,
+          groupId: existing.groupId,
+        })
+        updateSuccess++
+      } else {
+        await createProduct(
+          currentGroupId.value,
+          row.name,
+          row.price,
+          row.ownerUid,
+          row.ownerName,
+          row.stock,
+          null,
+          row.description,
+          row.category,
+          [...row.tags],
+          row.status,
+        )
+        createSuccess++
+      }
       successfulRowNumbers.add(row.rowNumber)
-    } catch {
+    } catch (e: any) {
+      const msg = e?.message || '不明なエラー'
+      console.error('[products.import] row failed', { rowNumber: row.rowNumber, mode: row.mode, error: e })
+      rowErrors.push({ rowNumber: row.rowNumber, message: msg })
+      // 失敗行にエラーを表示するため、元の行のエラーリストに追記
+      const target = parsedRows.value.find((r) => r.rowNumber === row.rowNumber)
+      if (target && !target.errors.includes(msg)) {
+        target.errors = [...target.errors, msg]
+        target.valid = false
+      }
       failCount++
     }
     submittedCount.value++
   }
 
-  // 登録成功した行をリストから除去
+  // 成功した行をリストから除去
   parsedRows.value = parsedRows.value.filter((r) => !successfulRowNumbers.has(r.rowNumber))
   if (parsedRows.value.length === 0) {
     fileName.value = ''
@@ -335,10 +390,14 @@ const handleImport = async () => {
 
   submitting.value = false
 
+  const totalSuccess = createSuccess + updateSuccess
   if (failCount === 0) {
-    toast.success(`${successCount}件の商品を登録しました`)
+    const parts: string[] = []
+    if (createSuccess > 0) parts.push(`新規${createSuccess}件`)
+    if (updateSuccess > 0) parts.push(`更新${updateSuccess}件`)
+    toast.success(`${totalSuccess}件を反映しました（${parts.join(' / ') || '—'}）`)
   } else {
-    toast.warning(`${successCount}件登録、${failCount}件失敗しました`)
+    toast.warning(`${totalSuccess}件反映、${failCount}件失敗しました`)
   }
 }
 
