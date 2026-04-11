@@ -1,13 +1,17 @@
-import { PRODUCT_CATEGORIES, type ProductStatus } from '~/composables/useProducts'
+import { PRODUCT_CATEGORIES, type Product, type ProductStatus } from '~/composables/useProducts'
 
 export interface ExcelMember {
   uid: string
   displayName: string
 }
 
+export type ImportMode = 'create' | 'update'
+
 export interface ParsedRow {
   rowNumber: number
   raw: Record<string, any>
+  mode: ImportMode
+  productId: string
   name: string
   price: number
   ownerUid: string
@@ -21,7 +25,11 @@ export interface ParsedRow {
   valid: boolean
 }
 
+// 商品ID は先頭に配置し、未入力なら新規登録・入力があれば既存商品の更新となる。
+// 既存の「商品ID 列を含まないテンプレート」は raw['商品ID'] が undefined となり
+// 全行 mode='create' として扱われるため、下位互換性を保つ。
 export const EXCEL_COLUMNS = [
+  '商品ID',
   '商品名',
   '価格',
   '所有者',
@@ -115,6 +123,10 @@ const validateRow = (
   const raw = normalizeRowKeys(rawInput)
   const errors: string[] = []
 
+  // 商品ID (任意): 入力があれば更新モード、空なら新規登録モード
+  const productId = toTrimmedString(raw['商品ID'])
+  const mode: ImportMode = productId ? 'update' : 'create'
+
   // 商品名
   const name = toTrimmedString(raw['商品名'])
   if (!name) errors.push('商品名は必須です')
@@ -182,6 +194,8 @@ const validateRow = (
   return {
     rowNumber,
     raw,
+    mode,
+    productId,
     name,
     price,
     ownerUid: ownerResult.ownerUid,
@@ -219,10 +233,50 @@ export const useExcelImport = () => {
     return result
   }
 
-  const generateProductTemplate = async (): Promise<Blob> => {
+  // 列幅設定: EXCEL_COLUMNS の順序に対応 (商品ID / 商品名 / 価格 / 所有者 /
+  // 在庫数 / カテゴリ / 説明 / タグ / ステータス)
+  const COLUMN_WIDTHS = [
+    { wch: 24 }, // 商品ID
+    { wch: 24 }, // 商品名
+    { wch: 10 }, // 価格
+    { wch: 16 }, // 所有者
+    { wch: 8 },  // 在庫数
+    { wch: 16 }, // カテゴリ
+    { wch: 30 }, // 説明
+    { wch: 20 }, // タグ
+    { wch: 10 }, // ステータス
+  ]
+
+  const buildXlsxBlob = async (
+    rows: Record<string, any>[],
+    sheetName: string,
+  ): Promise<Blob> => {
     const XLSX = await loadXlsx()
+    const ws = XLSX.utils.json_to_sheet(rows, { header: [...EXCEL_COLUMNS] })
+    ws['!cols'] = COLUMN_WIDTHS
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, sheetName)
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
+    return new Blob([buf], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+  }
+
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const generateProductTemplate = async (): Promise<Blob> => {
     const sample = [
       {
+        商品ID: '',
         商品名: 'サンプル商品',
         価格: 1500,
         所有者: '（メンバーの表示名を入力）',
@@ -233,42 +287,43 @@ export const useExcelImport = () => {
         ステータス: '公開',
       },
     ]
-    const ws = XLSX.utils.json_to_sheet(sample, { header: [...EXCEL_COLUMNS] })
-    // 列幅を設定して見やすくする
-    ws['!cols'] = [
-      { wch: 24 },
-      { wch: 10 },
-      { wch: 16 },
-      { wch: 8 },
-      { wch: 16 },
-      { wch: 30 },
-      { wch: 20 },
-      { wch: 10 },
-    ]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME)
-    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
-    return new Blob([buf], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
+    return buildXlsxBlob(sample, SHEET_NAME)
   }
 
   const downloadTemplate = async () => {
     const blob = await generateProductTemplate()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = TEMPLATE_FILENAME
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    triggerDownload(blob, TEMPLATE_FILENAME)
+  }
+
+  // 既存の商品一覧を 商品ID 列付きで書き出す。再アップロードすると各行は
+  // 「更新モード」として処理され、編集内容が既存商品に反映される。
+  const generateProductExport = async (products: Product[]): Promise<Blob> => {
+    const rows = products.map((p) => ({
+      商品ID: p.id,
+      商品名: p.name,
+      価格: p.price,
+      所有者: p.ownerName,
+      在庫数: p.stock,
+      カテゴリ: p.category || 'その他',
+      説明: p.description || '',
+      タグ: (p.tags || []).join(','),
+      ステータス: (p.status || 'published') === 'unpublished' ? '非公開' : '公開',
+    }))
+    return buildXlsxBlob(rows, SHEET_NAME)
+  }
+
+  const downloadProductsExport = async (products: Product[]) => {
+    const blob = await generateProductExport(products)
+    const dateStr = new Date().toISOString().slice(0, 10)
+    triggerDownload(blob, `商品一覧_${dateStr}.xlsx`)
   }
 
   return {
     parseProductExcel,
     generateProductTemplate,
     downloadTemplate,
+    generateProductExport,
+    downloadProductsExport,
     EXCEL_COLUMNS,
   }
 }

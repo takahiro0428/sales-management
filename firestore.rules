@@ -94,18 +94,21 @@ service cloud.firestore {
         && (isPlatformAdmin() || isGroupMemberDoc(request.resource.data.groupId))
         && (!request.resource.data.keys().hasAny(['status'])
             || request.resource.data.status in ['published', 'unpublished']);
-      // Update: product owner, platform admin, or stock-only updates by group member
+      // Update: product owner, group admin, platform admin, or stock-only updates by group member
       // Status must be valid if changed
       allow update: if isAuthenticated()
         && (!request.resource.data.keys().hasAny(['status'])
             || request.resource.data.status in ['published', 'unpublished'])
         && (isPlatformAdmin()
           || resource.data.ownerUid == request.auth.uid
+          || isGroupAdminDoc(resource.data.groupId)
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt'])
               && isGroupMemberDoc(resource.data.groupId)));
-      // Delete: product owner or platform admin
+      // Delete: product owner, group admin, or platform admin
       allow delete: if isAuthenticated()
-        && (isPlatformAdmin() || resource.data.ownerUid == request.auth.uid);
+        && (isPlatformAdmin()
+          || resource.data.ownerUid == request.auth.uid
+          || isGroupAdminDoc(resource.data.groupId));
     }
 
     // Sales collection

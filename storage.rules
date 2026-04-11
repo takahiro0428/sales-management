@@ -13,6 +13,11 @@ service firebase.storage {
     match /groups/{groupId}/products/{productId}/{allPaths=**} {
       allow read: if request.auth != null;
       allow write: if isValidImageUpload();
+      // Delete: any authenticated user. Firestore rules are the source of truth
+      // for who can delete a product; this rule simply lets the client-side
+      // cleanup path run after a successful Firestore delete. See
+      // app/app/composables/useProducts.ts:deleteProduct.
+      allow delete: if request.auth != null;
     }
 
     // Shop top-page hero images. Publicly readable because the shop top

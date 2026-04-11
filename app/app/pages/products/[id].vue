@@ -140,7 +140,11 @@
                 <Pencil :size="16" />
                 編集
               </button>
-              <button @click="showDeleteConfirm = true" class="btn-danger btn-sm">
+              <button
+                v-if="canDelete"
+                @click="showDeleteConfirm = true"
+                class="btn-danger btn-sm"
+              >
                 <Trash2 :size="16" />
                 削除
               </button>
@@ -191,7 +195,8 @@ definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const { getProduct, updateProduct, updateStock, adjustStock: composableAdjustStock, deleteProduct } = useProducts()
-const { getGroupMembers } = useGroups()
+const { getGroupMembers, isGroupAdmin } = useGroups()
+const { userProfile, isPlatformAdmin } = useAuth()
 const { suggestCategoryAndTags } = useAiSuggestion()
 const toast = useToast()
 const { currentGroupId } = useCurrentGroup()
@@ -204,6 +209,7 @@ const editing = ref(false)
 const submitting = ref(false)
 const aiSuggesting = ref(false)
 const showDeleteConfirm = ref(false)
+const canDelete = ref(false)
 const stockInput = ref<number | null>(null)
 const newImageFile = ref<File | null>(null)
 const newImagePreview = ref<string | null>(null)
@@ -323,7 +329,26 @@ const handleDelete = async () => {
     toast.success('商品を削除しました')
     navigateTo('/products')
   } catch (e) {
+    console.error('[products.handleDelete] failed', { productId, error: e })
     toast.error('削除に失敗しました')
+  }
+}
+
+// 権限判定: オーナー / プラットフォーム管理者 / グループ管理者 のみ削除可。
+// firestore.rules の delete 条件と一致させ、UI レベルでサイレント失敗を防ぐ。
+const refreshCanDelete = async () => {
+  canDelete.value = false
+  if (!product.value || !userProfile.value) return
+  const uid = userProfile.value.uid
+  if (product.value.ownerUid === uid || isPlatformAdmin.value) {
+    canDelete.value = true
+    return
+  }
+  try {
+    canDelete.value = await isGroupAdmin(product.value.groupId, uid)
+  } catch (e) {
+    console.error('[products.refreshCanDelete] isGroupAdmin failed', e)
+    canDelete.value = false
   }
 }
 
@@ -335,6 +360,7 @@ onMounted(async () => {
     ])
     product.value = p
     members.value = m.filter((m: any) => m.status === 'active')
+    await refreshCanDelete()
   } catch (e) {
     toast.error('データの読み込みに失敗しました')
   } finally {
