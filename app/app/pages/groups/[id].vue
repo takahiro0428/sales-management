@@ -25,10 +25,10 @@
 
     <template v-else-if="group">
       <!-- Tabs -->
-      <div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-6">
+      <div class="flex gap-1 bg-slate-100 rounded-xl p-1 mb-6 overflow-x-auto">
         <button
           @click="activeTab = 'members'"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          class="flex-1 min-w-max py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           :class="activeTab === 'members' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           メンバー ({{ members.length }})
@@ -36,17 +36,25 @@
         <button
           v-if="canManage"
           @click="activeTab = 'invitations'"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          class="flex-1 min-w-max py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           :class="activeTab === 'invitations' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           招待 ({{ invitations.length }})
         </button>
         <button
           @click="activeTab = 'qrcode'"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          class="flex-1 min-w-max py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           :class="activeTab === 'qrcode' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
         >
           QRコード
+        </button>
+        <button
+          v-if="canManage"
+          @click="activeTab = 'shop'"
+          class="flex-1 min-w-max py-2 px-4 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
+          :class="activeTab === 'shop' ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-500'"
+        >
+          ショップ設定
         </button>
       </div>
 
@@ -120,12 +128,21 @@
       <div v-if="activeTab === 'qrcode'">
         <div class="card">
           <h3 class="section-title mb-4">商品ページQRコード</h3>
-          <p class="text-sm text-slate-500 mb-4">このQRコードをお客様に共有すると、商品カタログページにアクセスできます。</p>
+          <p class="text-sm text-slate-500 mb-4">このQRコードをお客様に共有すると、ショップトップページにアクセスできます。</p>
           <QrCodeGenerator
             :url="shopUrl"
             :group-name="group?.name"
           />
         </div>
+      </div>
+
+      <!-- Shop Settings Tab -->
+      <div v-if="activeTab === 'shop' && canManage">
+        <ShopHeroSettingsForm
+          :group-id="groupId"
+          :group="group"
+          @updated="handleShopSettingsUpdated"
+        />
       </div>
 
       <!-- Invite Modal -->
@@ -311,6 +328,13 @@ const handleUpdateGroup = async () => {
   } finally {
     updatingGroup.value = false
   }
+}
+
+const handleShopSettingsUpdated = (patch: { heroImageUrl?: string | null; heroTitle?: string; heroCaption?: string }) => {
+  if (!group.value) return
+  // Reassign to a fresh object so child components watching `props.group`
+  // by reference observe the change (rather than relying on deep-watch).
+  group.value = { ...group.value, ...patch }
 }
 
 const handleDeleteGroup = async () => {
