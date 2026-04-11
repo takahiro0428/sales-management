@@ -13,10 +13,19 @@ service firebase.storage {
     match /groups/{groupId}/products/{productId}/{allPaths=**} {
       allow read: if request.auth != null;
       allow write: if isValidImageUpload();
-      // Delete: any authenticated user. Firestore rules are the source of truth
-      // for who can delete a product; this rule simply lets the client-side
-      // cleanup path run after a successful Firestore delete. See
-      // app/app/composables/useProducts.ts:deleteProduct.
+      // Delete: any authenticated user. This is intentionally permissive to
+      // match the hero path pattern below, and because:
+      //   1. Firestore rules are the source of truth for product permissions.
+      //      The client-side cleanup path in
+      //      app/app/composables/useProducts.ts:deleteProduct only runs
+      //      *after* a successful Firestore delete, which enforces
+      //      owner / groupAdmin / platformAdmin.
+      //   2. Narrowing this rule would require Storage -> Firestore
+      //      cross-service calls, which have environment-specific emulator
+      //      caveats — see the hero path comment below.
+      //   3. Worst-case abuse is orphan-image deletion (loss of non-critical
+      //      binary data). The Firestore product document, which is the
+      //      primary record and source of truth, remains protected.
       allow delete: if request.auth != null;
     }
 

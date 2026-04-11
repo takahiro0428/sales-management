@@ -327,7 +327,7 @@ import { PRODUCT_CATEGORIES, type Product, type ProductStatus } from '~/composab
 definePageMeta({ middleware: 'auth' })
 
 const { getGroupProducts, updateProduct } = useProducts()
-const { getGroupMembers } = useGroups()
+const { getGroupMembers, isGroupAdmin } = useGroups()
 const { downloadProductsExport } = useExcelImport()
 const { currentUser, isPlatformAdmin } = useAuth()
 const toast = useToast()
@@ -341,6 +341,10 @@ const filterOwner = ref('')
 const filterCategory = ref('')
 const filterStatus = ref('')
 const exporting = ref(false)
+// 現在のユーザーが表示中グループの groupAdmin かどうか。Firestore rules の
+// products update/delete が groupAdmin を許可しているため、UI の canEdit
+// と products/[id].vue の canDelete を揃えるために必要。
+const isCurrentGroupAdmin = ref(false)
 
 const handleExport = async () => {
   if (products.value.length === 0) return
@@ -377,10 +381,12 @@ const mobileDraft = reactive<{ category: string; ownerUid: string; price: number
   status: 'published',
 })
 
+// 編集可否は Firestore rules と一致させる: オーナー / platformAdmin /
+// そのグループの groupAdmin が full-update 可能。
 const canEdit = (p: Product) => {
   const uid = currentUser.value?.uid
   if (!uid) return false
-  return p.ownerUid === uid || isPlatformAdmin.value
+  return p.ownerUid === uid || isPlatformAdmin.value || isCurrentGroupAdmin.value
 }
 
 // Local directives: autofocus an input/select when it mounts; focus+select for number input.
@@ -572,13 +578,17 @@ const saveMobileEdit = async (p: Product) => {
 const loadData = async () => {
   if (!currentGroupId.value) { loading.value = false; return }
   loading.value = true
+  isCurrentGroupAdmin.value = false
   try {
-    const [p, m] = await Promise.all([
+    const uid = currentUser.value?.uid
+    const [p, m, gAdmin] = await Promise.all([
       getGroupProducts(currentGroupId.value),
       getGroupMembers(currentGroupId.value),
+      uid ? isGroupAdmin(currentGroupId.value, uid).catch(() => false) : Promise.resolve(false),
     ])
     products.value = p
     members.value = m.filter((m) => m.status === 'active')
+    isCurrentGroupAdmin.value = gAdmin
   } catch (e) {
     toast.error('データの読み込みに失敗しました')
   } finally {
