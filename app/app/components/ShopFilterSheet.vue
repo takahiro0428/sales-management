@@ -258,6 +258,17 @@ watch(
   },
 )
 
+// If the parent mutates filters externally (e.g. user clicks "すべてクリア"
+// from the chip row) while the sheet is already open, keep draft in sync.
+watch(
+  () => props.filters,
+  (f) => {
+    if (!props.modelValue) return
+    Object.assign(draft, emptyFilters(), f)
+  },
+  { deep: true },
+)
+
 // Emit live draft changes so parent can show result count preview
 watch(
   draft,

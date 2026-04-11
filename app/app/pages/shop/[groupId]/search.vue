@@ -155,7 +155,7 @@
         :result-count="draftResultCount"
         @apply="applyFilters"
         @draft-change="onDraftChange"
-        @reset="clearAll"
+        @reset="clearFiltersOnly"
       />
     </NuxtLayout>
   </div>
@@ -246,10 +246,13 @@ const syncUrl = () => {
     syncTimer = null
     suppressQueryWatch = true
     router.replace({ query: buildQuery(), hash: route.hash })
-    // Release the flag after the route watcher has a chance to fire.
-    nextTick(() => { suppressQueryWatch = false })
   }, 250)
 }
+
+// Skip the very first watcher flush so the synchronous initFromQuery()
+// above does not immediately trigger a redundant router.replace.
+let initialSyncDone = false
+onMounted(() => { initialSyncDone = true })
 
 // Watch filter state and sync URL (debounced).
 watch(
@@ -263,16 +266,24 @@ watch(
     searchQuery,
   ],
   () => {
+    if (!initialSyncDone) return
     syncUrl()
   },
 )
 
 // Re-initialize filters when the user navigates via browser back/forward,
-// which changes route.query without remounting the component.
+// which changes route.query without remounting the component. The
+// `suppressQueryWatch` flag guards against our own `router.replace` calls
+// triggering a re-init loop; we release the flag one-shot inside the
+// watcher itself so the release is deterministic regardless of Vue's
+// flush ordering (see second-pass review Finding 1).
 watch(
   () => route.query,
   () => {
-    if (suppressQueryWatch) return
+    if (suppressQueryWatch) {
+      suppressQueryWatch = false
+      return
+    }
     initFromQuery()
   },
 )
@@ -410,10 +421,19 @@ const clearPrice = () => {
   filters.maxPrice = null
 }
 
-const clearAll = () => {
+// Clears the filter state only (sort / category / tags / price / favorites).
+// Used by the FilterSheet's "リセット" button so it does NOT also wipe the
+// top-bar free-text search, which lives outside the sheet.
+const clearFiltersOnly = () => {
   Object.assign(filters, defaultFilters())
-  searchQuery.value = ''
   draftFilters.value = defaultFilters()
+}
+
+// Full clear used by the page-level "すべてクリア" chip and the empty-state
+// CTA — also clears the search query since both controls are visible.
+const clearAll = () => {
+  clearFiltersOnly()
+  searchQuery.value = ''
 }
 
 const openDetail = (product: Product) => {
