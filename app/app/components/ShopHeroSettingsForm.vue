@@ -160,11 +160,14 @@ const isDirty = computed(() => {
   return false
 })
 
-// Keep form in sync if parent updates the group doc
+// Keep form in sync if parent updates the group doc. Guard against
+// running during an in-flight save so a mid-save parent mutation (e.g.
+// realtime listener, unrelated refresh) can't discard the user's staged
+// file. `handleSave` calls `clearPendingFile` explicitly on success.
 watch(
   () => props.group,
   (g) => {
-    if (!g) return
+    if (!g || saving.value) return
     initial.heroImageUrl = g.heroImageUrl ?? null
     initial.heroTitle = g.heroTitle ?? ''
     initial.heroCaption = g.heroCaption ?? ''
@@ -256,8 +259,9 @@ const handleSave = async () => {
     } catch (persistErr) {
       // Firestore write failed after a successful upload: roll back the
       // orphan object from Storage so SoT and Storage stay in sync.
+      // Wrap in try/catch so a rollback failure cannot mask `persistErr`.
       if (newlyUploadedUrl) {
-        void deleteGroupHeroImage(newlyUploadedUrl)
+        try { void deleteGroupHeroImage(newlyUploadedUrl) } catch { /* best-effort */ }
       }
       throw persistErr
     }
@@ -279,8 +283,20 @@ const handleSave = async () => {
 
     toast.success('ショップ設定を保存しました')
   } catch (e) {
+    // Surface the underlying Firebase error code in the toast so admins can
+    // act on it (e.g. rules not yet deployed → `permission-denied`) instead
+    // of seeing an opaque generic failure.
+    const err = e as { code?: string; message?: string }
+    const code = err?.code
+    const detail = code ? `(${code})` : ''
     console.error('[ShopHeroSettingsForm] save failed:', e)
-    toast.error('ショップ設定の保存に失敗しました')
+    if (code === 'permission-denied' || code === 'storage/unauthorized') {
+      toast.error(`保存権限がありません。管理者権限とルール設定を確認してください ${detail}`.trim())
+    } else if (code === 'storage/canceled' || code === 'storage/unknown') {
+      toast.error(`画像のアップロードに失敗しました ${detail}`.trim())
+    } else {
+      toast.error(`ショップ設定の保存に失敗しました ${detail}`.trim())
+    }
   } finally {
     saving.value = false
   }
