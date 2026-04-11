@@ -8,5 +8,33 @@ service firebase.storage {
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
+
+    // Shop top-page hero images. Publicly readable because the shop top
+    // page (/shop/{groupId}) is a public route with no auth.
+    //
+    // Writes are restricted to group admins of the target group. Storage
+    // rules can query Firestore via `firestore.get` / `firestore.exists`
+    // (available since Feb 2021). The deterministic member doc ID pattern
+    // is `{uid}_{groupId}`, matching the Firestore rules' `isGroupAdminDoc`.
+    // Each cross-service call counts as a Firestore document read.
+    match /groups/{groupId}/hero/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*')
+        && firestore.exists(
+             /databases/(default)/documents/groupMembers/$(request.auth.uid + '_' + groupId)
+           )
+        && firestore.get(
+             /databases/(default)/documents/groupMembers/$(request.auth.uid + '_' + groupId)
+           ).data.role == 'groupAdmin';
+      allow delete: if request.auth != null
+        && firestore.exists(
+             /databases/(default)/documents/groupMembers/$(request.auth.uid + '_' + groupId)
+           )
+        && firestore.get(
+             /databases/(default)/documents/groupMembers/$(request.auth.uid + '_' + groupId)
+           ).data.role == 'groupAdmin';
+    }
   }
 }

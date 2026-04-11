@@ -10,6 +10,13 @@ import {
   documentId,
   serverTimestamp,
 } from 'firebase/firestore'
+import {
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from 'firebase/storage'
+import { resizeImage } from '~/utils/imageResize'
 
 export interface Group {
   id: string
@@ -18,7 +25,14 @@ export interface Group {
   createdBy: string
   createdAt: any
   updatedAt: any
+  // Shop top-page settings (all optional; legacy groups may lack these)
+  heroImageUrl?: string | null
+  heroTitle?: string
+  heroCaption?: string
 }
+
+const HERO_IMAGE_MAX_SIZE = 1600
+const HERO_IMAGE_QUALITY = 0.85
 
 export interface GroupMember {
   id: string
@@ -59,7 +73,7 @@ const FIRESTORE_IN_QUERY_LIMIT = 30
 const memberDocId = (uid: string, groupId: string) => `${uid}_${groupId}`
 
 export const useGroups = () => {
-  const { $firestore } = useNuxtApp()
+  const { $firestore, $firebaseStorage } = useNuxtApp()
   const { addDocument, updateDocument, deleteDocument } = useFirestore()
 
   const createGroup = async (name: string, description: string, creatorUid: string, creatorName: string, creatorEmail: string) => {
@@ -246,6 +260,55 @@ export const useGroups = () => {
     await updateDocument('groups', groupId, data)
   }
 
+  /**
+   * Upload a hero image for the shop top page.
+   * Uploads a resized copy (max 1600px edge, JPEG 0.85) to
+   * `groups/{groupId}/hero/{timestamp}_{filename}` and returns the download URL.
+   * Does NOT persist the URL on the group document — call `updateGroupShopSettings` afterwards.
+   */
+  const uploadGroupHeroImage = async (groupId: string, file: File): Promise<string> => {
+    const blob = await resizeImage(file, HERO_IMAGE_MAX_SIZE, HERO_IMAGE_QUALITY)
+    // Sanitize filename: strip path separators and force .jpg (we always encode JPEG)
+    const safeName = file.name.replace(/[\\/]/g, '_').replace(/\.[^.]+$/, '') || 'hero'
+    const path = `groups/${groupId}/hero/${Date.now()}_${safeName}.jpg`
+    const ref = storageRef($firebaseStorage, path)
+    await uploadBytes(ref, blob, { contentType: 'image/jpeg' })
+    return await getDownloadURL(ref)
+  }
+
+  /**
+   * Best-effort delete of a previously uploaded hero image from Storage.
+   * Non-blocking — we swallow errors so a failed cleanup never blocks the main flow.
+   * The Firebase Storage SDK's `ref()` accepts full download URLs directly
+   * (both `firebasestorage.googleapis.com` and `storage.googleapis.com` forms).
+   */
+  const deleteGroupHeroImage = async (downloadUrl: string): Promise<void> => {
+    try {
+      const ref = storageRef($firebaseStorage, downloadUrl)
+      await deleteObject(ref)
+    } catch {
+      /* non-blocking */
+    }
+  }
+
+  /**
+   * Persist hero section settings on the group document.
+   * Accepts a partial object; only provided keys are updated (Firestore partial update).
+   * Pass `heroImageUrl: null` to explicitly clear the image.
+   * Strips any `undefined` values because Firestore's `updateDoc` rejects them.
+   */
+  const updateGroupShopSettings = async (
+    groupId: string,
+    data: { heroImageUrl?: string | null; heroTitle?: string; heroCaption?: string },
+  ) => {
+    const cleaned: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) cleaned[k] = v
+    }
+    if (Object.keys(cleaned).length === 0) return
+    await updateDocument('groups', groupId, cleaned)
+  }
+
   const deleteGroup = async (groupId: string, callerUid: string) => {
     // Clean up groupMembers for this group (delete caller's own doc last to preserve permissions)
     const members = await getGroupMembers(groupId)
@@ -286,6 +349,9 @@ export const useGroups = () => {
     removeMember,
     isGroupAdmin,
     updateGroup,
+    uploadGroupHeroImage,
+    deleteGroupHeroImage,
+    updateGroupShopSettings,
     deleteGroup,
   }
 }

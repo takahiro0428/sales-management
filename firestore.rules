@@ -69,7 +69,7 @@ service cloud.firestore {
       allow update: if isAuthenticated()
         && (isPlatformAdmin()
           || (isGroupAdminDoc(groupId)
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'description', 'updatedAt'])));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'description', 'heroImageUrl', 'heroTitle', 'heroCaption', 'updatedAt'])));
       allow delete: if isAuthenticated() && (isPlatformAdmin() || isGroupAdminDoc(groupId));
     }
 

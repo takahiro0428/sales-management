@@ -13,6 +13,7 @@ import {
   uploadBytes,
   getDownloadURL,
 } from 'firebase/storage'
+import { resizeImage } from '~/utils/imageResize'
 
 export type ProductStatus = 'published' | 'unpublished'
 
@@ -56,60 +57,22 @@ export const useProducts = () => {
 
   const uploadProductImage = async (groupId: string, productId: string, file: File): Promise<{ imageUrl: string; thumbnailUrl: string }> => {
     // Upload original
-    const originalRef = storageRef($firebaseStorage, `groups/${groupId}/products/${productId}/original_${file.name}`)
-    await uploadBytes(originalRef, file)
+    const safeOriginalName = file.name.replace(/[\\/]/g, '_') || 'product'
+    const originalRef = storageRef($firebaseStorage, `groups/${groupId}/products/${productId}/original_${safeOriginalName}`)
+    await uploadBytes(originalRef, file, { contentType: file.type || undefined })
     const imageUrl = await getDownloadURL(originalRef)
 
-    // Create and upload thumbnail (compressed via canvas)
-    const thumbnailBlob = await createThumbnail(file, THUMBNAIL_MAX_SIZE)
-    const thumbRef = storageRef($firebaseStorage, `groups/${groupId}/products/${productId}/thumb_${file.name}`)
-    await uploadBytes(thumbRef, thumbnailBlob)
+    // Create and upload thumbnail. `resizeImage` always encodes JPEG, so the
+    // stored object MUST have a .jpg extension and an explicit `image/jpeg`
+    // contentType to avoid Firebase Storage mis-inferring the content type
+    // from the source file extension (e.g. photo.png -> image/png bytes).
+    const thumbnailBlob = await resizeImage(file, THUMBNAIL_MAX_SIZE, THUMBNAIL_QUALITY)
+    const baseName = safeOriginalName.replace(/\.[^.]+$/, '') || 'product'
+    const thumbRef = storageRef($firebaseStorage, `groups/${groupId}/products/${productId}/thumb_${baseName}.jpg`)
+    await uploadBytes(thumbRef, thumbnailBlob, { contentType: 'image/jpeg' })
     const thumbnailUrl = await getDownloadURL(thumbRef)
 
     return { imageUrl, thumbnailUrl }
-  }
-
-  const createThumbnail = (file: File, maxSize: number): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')!
-      const objectUrl = URL.createObjectURL(file)
-
-      img.onload = () => {
-        // Revoke object URL to prevent memory leak
-        URL.revokeObjectURL(objectUrl)
-
-        let { width, height } = img
-        if (width > height) {
-          if (width > maxSize) {
-            height = (height * maxSize) / width
-            width = maxSize
-          }
-        } else {
-          if (height > maxSize) {
-            width = (width * maxSize) / height
-            height = maxSize
-          }
-        }
-        canvas.width = width
-        canvas.height = height
-        ctx.drawImage(img, 0, 0, width, height)
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob)
-            else reject(new Error('Failed to create thumbnail'))
-          },
-          'image/jpeg',
-          THUMBNAIL_QUALITY,
-        )
-      }
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl)
-        reject(new Error('Failed to load image'))
-      }
-      img.src = objectUrl
-    })
   }
 
   const createProduct = async (
