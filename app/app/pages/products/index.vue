@@ -2,7 +2,11 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <h2 class="page-title">商品管理</h2>
-      <div v-if="currentGroupId" class="flex gap-2">
+      <div v-if="currentGroupId" class="flex flex-wrap gap-2">
+        <NuxtLink to="/products/import" class="btn-secondary btn-sm">
+          <FileSpreadsheet :size="16" />
+          Excelインポート
+        </NuxtLink>
         <NuxtLink to="/products/bulk-new" class="btn-secondary btn-sm">
           <Images :size="16" />
           一括登録
@@ -143,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { PlusCircle, Package, Users, Search, Images, Eye, EyeOff } from 'lucide-vue-next'
+import { PlusCircle, Package, Users, Search, Images, Eye, EyeOff, FileSpreadsheet } from 'lucide-vue-next'
 import { PRODUCT_CATEGORIES } from '~/composables/useProducts'
 
 definePageMeta({ middleware: 'auth' })
